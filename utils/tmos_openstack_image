@@ -1,0 +1,505 @@
+#!/bin/bash
+#
+# OpenStack Glance Image creation script for F5 BIG-IP
+# author: John Gruber <j.gruber@f5.com>
+# updated: 2015-03-05
+#
+# This script takes downloadable F5 Virtual Edition qcow disk images
+# and prepares then to be an OpenStack Glance image suitable for 
+# tenant onboarding within a OpenStack Nova base cloud. 
+# Optionally it also creates the Glance image using the glance CLI tool.
+#
+# BIG-IP and BIG-IQ qcow images are available with a valid account
+# from download.f5.com.
+#
+# This script requires root access as it mounts block devices. Only one
+# copy of this script should be run at a time per host as it uses 
+# global scratch file names and mount points.
+#
+# This script was designed to be used on Debian based systems
+# and will try to use the dpkg and apt-get utilities to check for,
+# and optionally install, the needed utils to mount the F5 qcow 
+# disk images. As it requires root device access, containerization is not
+# really suitable. 
+#
+# This script provides the basis for a simple VE onboarding mechanism
+# which is triggered by the standard TMOS /config/startup script 
+# execution on boot. The /config/startup agent script is injected by this 
+# script into VE qcow disk image images. 
+#
+# The supplied startup script uses a userdata JSON formatted document
+# which can be provided by the tenant at instance launch time using
+# the standard Nova userdata and Nova metadata services. If the user
+# does not supply userdata for the VE, this script will inject a 
+# /config/user_data.json document which can contain reasonable default
+# settings for all VEs based on this image. If the tenant supplies
+# their own userdata, those settings will be use instead of the 
+# injected defaults in the /config/user_data.json file.
+#
+# The supplied startup script is only one possible /config/startup
+# agent workflow. The /config/startup mechanism of TMOS is there
+# to provide tenants a way to customize boot time parameters for their
+# TMOS devices.
+#
+# This script assumes that the presence of the following other files.
+#
+# ./startup - The startup agent script to be injected.
+#             Note that this location can be overwritten
+#             with the -s [full_path_to_start_agent_script] option
+#
+# ./user_data.json - The default userdata policy to use for onboarding
+#                    the F5 instances. This is usually tightly coupled
+#                    with a startup agent script which implements this
+#                    policy when the F5 VE instance boots.
+#                    Note that this location can be overwritten
+#                    with the -u [full_path_policy_file] option
+#
+# If the -g option is included the script to attempt to publish
+# your image using the glance CLI client. You can optionally use 
+# the -r [min-ram] to specify the minimum RAM, and the -d [min-disk] 
+# to specify the minimum Disk which must be allocated to start the VE. 
+#
+# Use of the glance CLI tool to publish F5 images, assumes that 
+# proper Keystone credentials to publish the Glance image are 
+# defined in exported ENV variables or an appropriate rc file has
+# been sourced within the running environment of this script.
+#
+# For example:
+#
+#  export OS_USERNAME=admin
+#  export OS_PASSWORD=adminsecret
+#  export OS_TENANT_NAME=admin
+#  export OS_AUTH_URL=http://10.1.1.1:5000/v2.0
+#
+#  You can test these setting by issuing:
+#
+#  glance image-list
+#
+#  If you see a list of available images, you have successfully 
+#  communicated to your Glance API service.
+#
+# To explicitly define the glance image name, use the -i [image_name]
+# option.
+#
+# To explicitly define the glance image os_type metadata, use the
+# -t [os_type] option.
+#
+# To explicitly define the glance image os_name metadata, use the
+# -n [os_name] option.
+#
+# To explicitly defint the glance image os_version metadata, use the
+# -v [os_version] option.
+#
+# The only required argument for this script is the full path to
+# a qcow image. This full path is not proceeded by an option flag.
+#
+# Optionally TMOS base ISO and HF ISO to inject into /shared/images
+# on the TMOS VE device. The full path to the TMOS base ISO needs to be
+# supplied after the -b option, and the full path to the Hotfix ISO
+# needs to be supplied after the -h option.
+#
+# This script simply injects the base ISO and HF ISO onto the VE 
+# image. The TMSH or xui software management commands will still 
+# need to be issued to perform the HF patching of the VE. The TMSH
+# commands to do this can be placed in the user_data.json policy 
+# file and executed on when the VE is booted.
+#
+# The -f option with touch a /config/firstboot file which can be
+# used withing the startup agent script to indicate the first boot of 
+# the VE. Naturaly the startup agent script will want to remove
+# this flag file after it has performed its first boot policy.
+#
+function usage() {
+    echo ""
+    echo "usage: tmos_openstack_image -s startup -f -b base.iso -h hotfix.iso -g -F <image_file.qcow2>"
+    echo ""
+    echo " options are:"
+    echo ""
+    echo "   -s : [startup_script_file] - default is ./startup"
+    echo "   -u : [user_data.json_file] - default is ./user_data.json"
+    echo "   -f : touches a /config/firstboot file - default does not touch firstboot file flag"
+    echo "   -b : [tmos.iso] - TMOS base ISO file"
+    echo "   -h : [hf.iso] - TMOS HF ISO file. If you include hf.iso you must include the base.iso"
+    echo "   -g : try to publish image via glance CLI client"
+    echo "   -r : default min-ram for glance image - default is 4096 (M)"
+    echo "   -d : default min-disk for the glance image - default 120 (G)"
+    echo "   -i : image name - default is generated from image file name"
+    echo "   -t : image os_type - default is f5bigip"
+    echo "   -n : image os_name - default is generated from image file name"
+    echo "   -v : image os_version - default is generated from image file name"
+    echo "   -V : image os_vendor - default is: F5 Networks"
+    echo "   -o : output image name - default is generated from base image and ISO names"
+    echo "   -x : the directory to store patched images - default is generated from script directory"
+    echo "   -w : the work directory to copy base image - default to /tmp"
+    echo ""
+    echo "sudo tmos_openstack_image -s mystartup -u myuserdata -f -g -b /images/base.iso -h /images/hf.iso /images/BIGIP-11.5.0.0.0.221.qcow2"
+    echo ""
+}
+
+function setup() {
+  badusage=false
+  
+  if [ -z ${base_qcow} ]
+  then
+     echo "ERROR: TMOS qcow image is required"
+     badusage=true
+  else    
+	  if ! [ -f $base_qcow ]
+	  then
+		echo "ERROR: TMOS qcow image $base_qcow does not exist"
+		badusage=true
+	  else
+		echo $base_qcow | grep -e'\(.*\)\.qcow2' > /dev/null 2>&1
+		if [ $? -ne 0 ]
+		then
+			echo "ERROR: TMOS qcow image $base_qcow does not seem to be a qcow2 images"
+			badusage=true
+		fi
+	  fi    
+
+	  if ! [ -f $startup_file ]
+	  then
+		echo "ERROR: startup file $startup_file does not exist"
+		badusage=true
+	  fi
+		 
+	  if ! [ -z ${hf_iso} ]
+	  then
+		if [ -z $tmos_iso ] 
+		then
+		  echo "ERROR: You must supply a base TMOS ISO to include a Hotfix"
+		  badusage=true
+		else
+		  if ! [ -f $tmos_iso ]
+		  then
+			echo "ERROR: TMOS ISO $tmos_iso does not exist"
+			badusage=true
+		  else
+			echo $tmos_iso | grep -e'\(.*\)\.iso' > /dev/null 2>&1
+			if [ $? -ne 0 ]
+			then
+				echo "ERROR: TMOS iso $tmos_iso does not seem to be a ISO image"
+				badusage=true
+			fi
+		  fi
+		fi
+		
+		if ! [ -f $hf_iso ]
+		then
+		  echo "ERROR: Hotfix ISO $hf_iso does not exist"
+		  badusage=true
+		else
+		  echo $hf_iso | grep -e'\(.*\)\.iso' > /dev/null 2>&1
+		  if [ $? -ne 0 ]
+		  then
+			echo "ERROR: HF iso $hf_iso does not seem to be a ISO image"
+			badusage=true
+		  fi
+		fi
+	  fi
+  fi
+  
+    
+  if $badusage
+  then
+	usage
+	exit 1
+  fi
+
+  mkdir -p $WRK_DIR/images/added
+  mkdir -p $WRK_DIR/images/patched
+  
+  if [ -z ${newfile} ]
+  then
+    base_file=`basename $base_qcow` > /dev/null 2>&1
+    if ! [ -z ${hf_iso} ]
+    then
+      hotfixiso_file=`basename $hf_iso` > /dev/null 2>&1
+      newfile=`echo $base_file $hotfixiso_file| sed "s/BIGIP-\([^.]*.[^.]*.[^.]*.[^.]*.[^.]*.[^.]*\).qcow2 Hotfix-BIGIP-[^.]*.[^.]*.[^.]*.\([^.]*.[^.]*.[^.]*\)-.*/BIGIP-\1-HF-\2-OpenStack.qcow2/"`
+    else
+      newfile=`echo $base_file| sed "s/.qcow2/-OpenStck.qcow2/"`
+    fi
+  fi
+}
+
+function setup_debian() {
+  # set -xe
+  is_lvm2_installed=`dpkg --get-selections lvm2|grep install|wc -l`
+  is_qemu_utils_installed=`dpkg --get-selections qemu-utils|grep install|wc -l`
+  if ! [ $is_lvm2_installed == 1  -a $is_qemu_utils_installed == 1  ]
+  then 
+    echo Running apt-get update....
+    apt-get update  > /dev/null 2>&1
+    echo Running apt-get install qemu-utils lvm2
+    apt-get -y install qemu-utils lvm2  > /dev/null 2>&1
+  fi
+  echo "Copying $base_qcow to $newfile"
+  cp $base_qcow $WRK_DIR/images/patched/$newfile
+  modprobe nbd max_part=32
+  sleep 2
+}
+
+function connect_to_qcow() {
+  echo Creating nbd device for qcow disk $newfile
+  qemu-nbd --connect=/dev/nbd0 $WRK_DIR/images/patched/$newfile > /dev/null 2>&1
+  sleep 2
+  pvscan > /dev/null 2>&1
+  sleep 2
+  vgchange -ay > /dev/null 2>&1
+  sleep 2
+}
+
+function get_dev() {
+    ls -l /dev/vg-db-hda | grep $1 | cut -d'>' -f2 | cut -d'/' -f2-
+}
+
+function mount_tmos_vols() {
+  mkdir -p $WRK_DIR/mnt/bigip-config
+  mkdir -p $WRK_DIR/mnt/bigip-shared
+
+  echo "Waiting for lvm to query volume group from $newfile"
+  sleep 15
+  
+  echo "Mounting bigip-config and bigip-shared volumes from $newfile"
+  mount /dev/`get_dev set.1._conf` $WRK_DIR/mnt/bigip-config/ > /dev/null 2>&1
+  mount /dev/`get_dev dat.share`  $WRK_DIR/mnt/bigip-shared/ > /dev/null 2>&1
+}
+
+function inject_files() {
+  echo "Copying startup agent to /config/startup on $newfile"
+  cp $startup_file $WRK_DIR/mnt/bigip-config > /dev/null 2>&1
+  if [ -f $userdata_file ]
+  then
+    echo "Copying $userdata_file default policy to /config/user_data.json on $newfile"
+    cp $userdata_file $WRK_DIR/mnt/bigip-config > /dev/null 2>&1
+  fi
+  if $firstboot_file
+  then
+    echo "Touching firstboot flag file to /config/firstboot on $newfile"
+    touch $WRK_DIR/mnt/bigip-config/firstboot > /dev/null 2>&1
+  fi
+  if ! [ -z ${hf_iso} ]
+  then
+    echo "Copying $tmos_iso to /shared/images on $newfile"
+    cp $tmos_iso $WRK_DIR/mnt/bigip-shared/images/ > /dev/null 2>&1
+    echo "Copying $hf_iso to /shared/images on $newfile"
+    cp $hf_iso $WRK_DIR/mnt/bigip-shared/images/ > /dev/null 2>&1
+  fi
+}
+
+function cp_new_image() {
+	mkdir -p $IMAGE_DIR
+	mv $WRK_DIR/images/patched/$newfile $IMAGE_DIR/
+	if ! [ -z ${SUDO_USER} ]
+	then
+        echo "Changing ownership of the new image to $SUDO_USER"
+	    chown $SUDO_USER $IMAGE_DIR/$newfile
+	fi
+}
+
+function tear_down() {
+  sleep 2
+  echo "Unmounting bigip-config and bigip-shared volumes from $newfile"
+  umount $WRK_DIR/mnt/bigip-config > /dev/null 2>&1
+  umount $WRK_DIR/mnt/bigip-shared > /dev/null 2>&1
+  sleep 2
+  vgchange -an > /dev/null 2>&1
+  sleep 2
+  echo "Disconnecting from ndb device"
+  qemu-nbd -d /dev/nbd0 > /dev/null 2>&1
+  sleep 2
+  # set +xe
+}
+
+function remove_tmp_files() {
+  rm -rf $WRK_DIR/images > /dev/null 2>&1
+  rm -rf $WRK_DIR/mnt/bigip-config > /dev/null 2>&1
+  rm -rf $WRK_DIR/mnt/bigip-shared > /dev/null 2>&1
+}
+
+function set_image_dir() {
+  if [ -z ${IMAGE_DIR} ]
+  then
+    SCRIPTDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+    if [ -d "$SCRIPTDIR/images" ]; then
+      IMAGE_DIR="$SCRIPTDIR/images"
+    fi
+    if [ -z ${IMAGE_DIR} ]; then
+      if [ -d "$SCRIPTDIR/../images" ]; then
+        IMAGE_DIR="$SCRIPTDIR/../images"
+      else
+        IMAGE_DIR="$SCRIPTDIR/images"
+      fi
+    fi
+  fi
+}
+
+WRK_DIR=/tmp
+startup_file='./startup'
+userdata_file='./user_data.json'
+firstboot_file=false
+publish_image=false
+min_ram=4096
+min_disk=120
+os_vendor='F5 Networks'
+
+while getopts :s:u:fb:h:gr:d:i:t:n:v:V:o:x:w: opt "$@"; do
+  case $opt in
+   s)
+     startup_file=$OPTARG
+     ;;
+   u)
+     userdata_file=$OPTARG
+     ;;
+   f)
+     firstboot_file=true
+     ;;
+   b)
+     tmos_iso=$OPTARG
+     ;;
+   h)
+     hf_iso=$OPTARG
+     ;;
+   g)
+     publish_image=true
+     ;;
+   r)
+     min_ram=$OPTARG
+     ;;
+   d)
+     min_disk=$OPTARG
+     ;;
+   i)
+     image_name=$OPTARG
+     ;;
+   t)
+     os_type=$OPTARG
+     ;;
+   n)
+     os_name=$OPTARG
+     ;;
+   v)
+     os_version=$OPTARG
+     ;;
+   V)
+     os_vendor=$OPTARG
+     ;;
+   o)
+     newfile=$OPTARG
+     ;;   
+   x)
+     IMAGE_DIR=$OPTARG
+     ;;
+   w)
+     WRK_DIR=$OPTARG
+     ;;
+   esac
+done
+
+base_qcow=${!OPTIND}
+
+remove_tmp_files
+set_image_dir
+setup
+
+echo "Creating OpenStack image $newfile" 
+
+setup_debian
+connect_to_qcow
+mount_tmos_vols
+inject_files
+cp_new_image
+tear_down
+remove_tmp_files
+
+echo "OpenStack patched image is: $IMAGE_DIR/$newfile"
+
+if $publish_image
+then
+  echo $newfile | grep 'IQ' > /dev/null 2>&1
+  if [ $? -ne 0 ]
+  then
+    echo $newfile | grep 'HF' > /dev/null 2>&1
+    if [ $? -ne 0 ]
+    then
+		oIFS="$IFS"
+		IFS=-
+		set -- $newfile
+		generated_os_version=$2
+		generated_image_name="F5 TMOS $generated_os_version"
+		generated_os_name="Traffic Management Operating System"
+		generated_os_type="bigip"
+		IFS="$oIFS"
+	else
+	    oIFS="$IFS"
+		IFS=-
+		set -- $newfile
+		generated_os_version=$2
+		hf_version=$4
+		generated_image_name="F5 TMOS $generated_os_version Hotfix $hf_version"
+		generated_os_version="$generated_os_version with Hotfix $hf_version"
+		generated_os_name="Traffic Management Operating System"
+		generated_os_type="bigip"
+		IFS="$oIFS"
+	fi
+  else
+    echo $newfile | grep 'HF' > /dev/null 2>&1
+    if [ $? -ne 0 ]
+    then
+		oIFS="$IFS"
+		IFS=-
+		set -- $newfile
+		generated_os_version=$3
+		generated_image_name="F5 BIG-IQ $generated_os_version"
+		generated_os_name="F5 BIG-IQ Operating System"
+		generated_os_type="bigiq"
+		IFS="$oIFS"
+    else
+        oIFS="$IFS"
+		IFS=-
+		set -- $newfile
+		generated_os_version=$3
+		hf_version=$5
+		generated_image_name="F5 BIG-IQ $tmos_version Hotfix $hf_version"
+		generated_os_version="$generated_os_version with Hotfix $hf_version"
+		generated_os_name="F5 BIG-IQ Operating System"
+		generated_os_type="bigiq"
+		IFS="$oIFS"
+    fi  
+  fi
+  
+  if [ -z ${image_name} ]
+  then
+	image_name=$generated_image_name
+  fi  
+  
+  if [ -z ${os_type} ]
+  then
+	os_type=$generated_os_type
+  fi
+  
+  if [ -z ${os_name} ]
+  then
+	os_name=$generated_os_name
+  fi
+  
+  if [ -z ${os_version} ]
+  then
+	os_version=$generated_os_version
+  fi
+  
+  echo "Using glance CLI client to publish $image_name"
+  glance image-create \
+  --name "${image_name}" \
+  --disk-format qcow2 \
+  --container-format bare \
+  --min-disk $min_disk \
+  --min-ram $min_ram \
+  --is-public True \
+  --progress \
+  --property os_name="${os_name}" \
+  --property os_vendor="${os_vendor}" \
+  --property os_version="${os_version}" \
+  --property os_type="${os_type}" \
+  --file $IMAGE_DIR/$newfile
+fi

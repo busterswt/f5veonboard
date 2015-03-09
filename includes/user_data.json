@@ -1,0 +1,8 @@
+{
+    "bigip": {
+        "ssh_key_inject": "true",
+        "network": {
+            "dhcp": "true"
+        }
+    }
+}

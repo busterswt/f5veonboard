@@ -1,0 +1,46 @@
+### added by JTG for eclipse and virtualenv
+.venv
+.project
+.pydevproject
+.settings/*
+.idea/*
+*.py[cod]
+
+### added by JTG env makefile
+localutils/**
+images/*.iso
+images/*.qcow2
+images/*.zip
+images/*.ova
+images/*.vhd
+
+### auto-added by Github
+
+# C extensions
+*.so
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+var
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+__pycache__
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+
+# Translations
+*.mo

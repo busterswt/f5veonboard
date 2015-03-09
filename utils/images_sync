@@ -1,0 +1,81 @@
+#!/bin/bash
+
+function validate_packages() {
+	is_this_debian=`which dpkg|wc -l`
+
+	if ! [ $is_this_debian == 1 ]
+	then
+	   echo "Can not find debian package management. This runs on Debian based Linux only."
+	   exit 1
+	fi
+
+    is_unzip_installed=`dpkg --get-selections unzip|grep install|wc -l`
+    is_wget_installed=`dpkg --get-selections wget|grep install|wc -l`
+    is_keystoneclient_installed=`dpkg --get-selections python-keystoneclient|grep install|wc -l`
+	is_glanceclient_installed=`dpkg --get-selections python-glanceclient|grep install|wc -l`
+    is_novaclient_installed=`dpkg --get-selections python-novaclient|grep install|wc -l`
+    is_cinderclient_installed=`dpkg --get-selections python-cinderclient|grep install|wc -l`
+    
+	if ! [ $is_unzip_installed == 1 -a  $is_wget_installed == 1 -a $is_keystoneclient_installed == 1 -a $is_glanceclient_installed == 1  -a  $is_novaclient_installed == 1 -a $is_cinderclient_installed == 1 ]
+	then 
+		echo Running apt-get update....
+		sudo apt-get update 
+		echo Running apt-get install unzip wget python-keystoneclient python-glanceclient python-novaclient python-cinderclient
+		sudo apt-get -y install unzip wget python-keystoneclient python-glanceclient python-novaclient python-cinderclient 
+	fi
+}
+
+function validate_os_creds() {
+	if [[ -z ${OS_USERNAME}  ||  -z ${OS_PASSWORD}  ||  -z ${OS_TENANT_NAME}  ||  -z ${OS_AUTH_URL} ]]
+	then 
+	  echo ""
+	  echo "Required OpenStack credentials are not defined in the environment."
+	  echo ""
+	  if [ -z ${OS_USERNAME} ]
+	  then
+		echo -n "OpenStack Username: "
+		read OS_USERNAME;
+		export OS_USERNAME=$OS_USERNAME
+	  fi
+	  
+	  if [ -z ${OS_PASSWORD} ]
+	  then
+		echo -n "OpenStack Password: "
+		read -s OS_PASSWORD;
+		export OS_PASSWORD=$OS_PASSWORD
+		echo ""
+	  fi
+	  
+	  if [ -z ${OS_TENANT_NAME} ]
+	  then
+		echo -n "OpenStack Tenant: "
+		read OS_TENANT_NAME;
+		export OS_TENANT_NAME=$OS_TENANT_NAME
+	  fi
+	  
+	  if [ -z ${OS_AUTH_URL} ]
+	  then
+		echo -n "OpenStack Authenication URL (http://keystonehost:5000/v2.0): "
+		read OS_AUTH_URL;
+		export OS_AUTH_URL=$OS_AUTH_URL
+	  fi 
+	fi
+}
+
+validate_packages
+validate_os_creds
+
+SCRIPTDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+CMD="$SCRIPTDIR/libs/f5/bigip/virtualedition/image_sync.py"
+
+if [ -f "${CMD}" ]; then
+    eval ${CMD} "$@"
+else
+    CMD="$SCRIPTDIR/../libs/f5/bigip/virtualedition/image_sync.py"
+    if [ -f "${CMD}" ]; then
+      eval ${CMD} "$@"
+    else
+      echo "Can not find the f5.bigip.virtualedition.image_sync.py python module."
+    fi
+fi

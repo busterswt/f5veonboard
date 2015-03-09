@@ -1,0 +1,260 @@
+{
+    "bookmarks": [
+        {
+            "name": "BIGIP Virtual Edition ALL 11.5.2.0.0.141",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/ttRauwwYkkkx6rjsEkUiINPFa60NbIuUWo-R4wxJARYzVq-7g/BIGIP-11.5.2.0.0.141.ALL.qcow2.zip"
+             ],
+            "container_file_name": "BIGIP-11.5.2.0.0.141.ALL.qcow2.zip",
+            "disk_image_file": "BIGIP-11.5.2.0.0.141.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_all",
+            "os_version": "11.5.2.0.0.141",
+            "os_name": "F5 Traffic Manaement Operating System",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.5.2.0.0.141.ALL",
+            "image_description": "F5 Networks TMOS Version 11.5.2 for All Modules. Acceleration features require adding the DATASTOR volume.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 120,
+            "min-ram": 16384,
+            "vcpus": 4,
+            "flavor": "BIGIP_11_5_2_ALL",
+            "flavor-specs": [
+                {
+                    "target_vendor": "F5 Networks"
+                }
+            ],
+            "volumes": [
+                {
+                    "BIGIP-11.5.2.0.0.141.DATASTOR.ALL": {
+                        "volume_file": "BIGIP-11.5.2.0.0.141.DATASTOR.ALL.qcow2",
+                        "container_format": "raw",
+                        "disk_format": "qcow2",
+                        "min-disk": 40,
+                        "extra-specs": {
+                            "vendor": "f5",
+                            "type": "datastor"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 11.5.2.0.0.141",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/t1-G491LBbZlkP-B-F-WTzBB-C2vihqlD-1CI-tRdtQkneNS/BIGIP-11.5.2.0.0.141.LTM.qcow2.zip"
+            ],
+            "container_file_name": "BIGIP-11.5.2.0.0.141.LTM.qcow2.zip",
+            "disk_image_file": "BIGIP-11.5.2.0.0.141.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm",
+            "os_version": "11.5.2.0.0.141",
+            "os_name": "F5 Traffic Manaement Operating System",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.5.2.0.0.141.LTM",
+            "image_description": "F5 Networks TMOS Version 11.5.2 Local Traffic Manager.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 40,
+            "min-ram": 4096,
+            "vcpus": 2,
+            "flavor": "BIGIP_11_5_2_LTM",
+            "volumes": []
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 1SLOT 11.5.2.0.0.141",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/kaR1-gY-zt6o7yXxDMbc2xn-MFBkYdg6pjkpKmoRAA/BIGIP-11.5.2.0.0.141.LTM_1SLOT.qcow2.zip"
+            ],
+            "container_file_name": "BIGIP-11.5.2.0.0.141.LTM_1SLOT.qcow2.zip",
+            "disk_image_file": "BIGIP-11.5.2.0.0.141.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm_1slot",
+            "os_version": "11.5.2.0.0.141",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.5.2.0.0.141.LTM_1SLOT",
+            "image_description": "F5 Networks TMOS Version 11.5.2 Local Traffic Manager Micro Edition.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 8,
+            "min-ram": 2048,
+            "vcpus": 1,
+            "flavor": "BIGIP_11_5_2_LTM_1SLOT",
+            "volumes": []
+        },
+        {
+            "name": "BIGIP Virtual Edition ALL 11.6.0.0.0.401",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/NO1vbJmHqDkdIGvDopHJJY2yWYNpOnt6LEQ/BIGIP-11.6.0.0.0.401.ALL.qcow2.zip"
+            ],
+            "container_file_name": "BIGIP-11.6.0.0.0.401.ALL.qcow2.zip",
+            "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_all",
+            "os_version": "11.6.0.0.0.401",
+            "os_name": "F5 Traffic Manaement Operating System",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.6.0.0.0.401.ALL",
+            "image_description": "F5 Networks TMOS Version 11.6.0 for All Modules. Acceleration features require adding the DATASTOR volume.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 120,
+            "min-ram": 16384,
+            "vcpus": 4,
+            "flavor": "BIGIP_11_6_0_ALL",
+            "volumes": [
+                {
+                    "BIGIP-11.6.0.0.0.401.DATASTOR.ALL": {
+                        "volume_file": "BIGIP-11.6.0.0.0.401.DATASTOR.ALL.qcow2",
+                        "container_format": "raw",
+                        "disk_format": "qcow2",
+                        "min-disk": 40,
+                        "extra-specs": {
+                            "vendor": "f5",
+                            "type": "datastor"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 11.6.0.0.0.401",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/u6BoasGOGW5S2kX8jFXIzZOsGEu1m9s-FurY1C-aWaFbmz3/BIGIP-11.6.0.0.0.401.LTM.qcow2.zip"
+            ],
+            "container_file_name": "BIGIP-11.6.0.0.0.401.LTM.qcow2.zip",
+            "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm",
+            "os_version": "11.5.2.0.0.141",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.6.0.0.0.401.LTM",
+            "image_description": "F5 Networks TMOS Version 11.5.2 Local Traffic Manager.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 40,
+            "min-ram": 4096,
+            "vcpus": 2,
+            "flavor": "BIGIP_11_6_0_LTM",
+            "volumes": []
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 1SLOT 11.6.0.0.0.401",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/Fob3MdXZhoVwUVCx9PTXqfkGrehLeuVP36POJl-k/BIGIP-11.6.0.0.0.401.LTM_1SLOT.qcow2.zip"
+            ],
+            "container_file_name": "BIGIP-11.6.0.0.0.401.LTM_1SLOT.qcow2.zip",
+            "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm_slot",
+            "os_version": "11.6.0.0.0.401",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.6.0.0.0.401.LTM_1SLOT",
+            "image_description": "F5 Networks TMOS Version 11.6.0 Local Traffic Manager Micro Edition.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 8,
+            "min-ram": 2048,
+            "vcpus": 1,
+            "flavor": "BIGIP_11_6_0_LTM_1SLOT",
+            "volumes": []
+        },
+        {
+            "name": "BIGIP Virtual Edition ALL 11.6.0.4.0.420-HF4",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/NO1vbJmHqDkdIGvDopHJJY2yWYNpOnt6LEQ/BIGIP-11.6.0.0.0.401.ALL.qcow2.zip",
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/hWxum3bp-k05iXtMQUWFtsapVFYeBqZZrX7n-gcp2/BIGIP-11.6.0.0.0.401.iso",
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/sX601Ecf-vsbIqx4kkgreuoZheFEZuA-8quT/Hotfix-BIGIP-11.6.0.4.0.420-HF4.iso"
+            ],
+            "container_file_name": "BIGIP-11.6.0.0.0.401.ALL.qcow2.zip",
+            "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
+            "base_iso_file": "BIGIP-11.6.0.0.0.401.iso",
+            "hf_iso_file": "Hotfix-BIGIP-11.6.0.4.0.420-HF4.iso",
+            "os_type": "bigip_all",
+            "os_version": "11.6.0.0.0.401",
+            "os_name": "F5 Traffic Manaement Operating System",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.6.0.4.0.420-HF4.ALL",
+            "image_description": "F5 Networks TMOS Version 11.6.0 HF4 for All Modules. Acceleration features require adding the DATASTOR volume.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 120,
+            "min-ram": 16384,
+            "vcpus": 4,
+            "flavor": "BIGIP_11_6_0_ALL",
+            "volumes": [
+                {
+                    "BIGIP-11.6.0.0.0.401.DATASTOR.ALL": {
+                        "volume_file": "BIGIP-11.6.0.0.0.401.DATASTOR.ALL.qcow2",
+                        "container_format": "raw",
+                        "disk_format": "qcow2",
+                        "min-disk": 40,
+                        "extra-specs": {
+                            "vendor": "f5",
+                            "type": "datastor"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 11.6.0.4.0.420-HF4",
+            "urls": [
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/u6BoasGOGW5S2kX8jFXIzZOsGEu1m9s-FurY1C-aWaFbmz3/BIGIP-11.6.0.0.0.401.LTM.qcow2.zip",
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/hWxum3bp-k05iXtMQUWFtsapVFYeBqZZrX7n-gcp2/BIGIP-11.6.0.0.0.401.iso",
+                "http://downloads06.f5.com/esd/download.sv?loc=downloads06.f5.com/downloads/sX601Ecf-vsbIqx4kkgreuoZheFEZuA-8quT/Hotfix-BIGIP-11.6.0.4.0.420-HF4.iso"
+            ],
+            "container_file_name": "BIGIP-11.6.0.0.0.401.LTM.qcow2.zip",
+            "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
+            "base_iso_file": "BIGIP-11.6.0.0.0.401.iso",
+            "hf_iso_file": "Hotfix-BIGIP-11.6.0.4.0.420-HF4.iso",
+            "os_type": "bigip_ltm",
+            "os_version": "11.5.2.0.0.141",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "F5 Networks",
+            "image_name": "BIGIP-11.6.0.4.0.420-HF4.LTM",
+            "image_description": "F5 Networks TMOS Version 11.6.0 HF4 Local Traffic Manager.",
+            "startup_script": "startup",
+            "default_userdata": "user_data.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 40,
+            "min-ram": 4096,
+            "vcpus": 2,
+            "flavor": "BIGIP_11_6_0_LTM",
+            "volumes": []
+        }
+    ]
+}
