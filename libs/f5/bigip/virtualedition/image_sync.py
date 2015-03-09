@@ -28,6 +28,12 @@ class ImageSync():
     def __init__(self):
         self._get_image_dir()
 
+    def _setup(self, tempdirectory):
+        pass
+
+    def _teardown(self, tempdirectory):
+        pass
+
     def _get_ksclient(self):
         """Get Keystone Client."""
         if not self._ks_client:
@@ -76,9 +82,6 @@ class ImageSync():
                                     token=self._get_auth_token())
         return self._g_client
 
-
-
-
     def _get_compute_client(self):
         """Get a Glance v1 client."""
         if not self._g_client:
@@ -86,7 +89,6 @@ class ImageSync():
                                     self._get_image_endpoint(),
                                     token=self._get_auth_token())
         return self._g_client
-
 
     def _find_tmos_openstack_image_tool(self):
         self._tmos_image_tool = None
