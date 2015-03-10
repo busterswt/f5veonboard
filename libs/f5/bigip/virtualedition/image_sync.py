@@ -13,7 +13,8 @@ import shutil
 from os import environ as env
 from distutils.util import strtobool
 from keystoneclient.v2_0 import client as ksclient
-from novaclient.client import Client as nvclient
+from novaclient import client as nclient
+from cinderclient.v1 import client as cclient
 
 
 class ImageSync():
@@ -21,6 +22,7 @@ class ImageSync():
     _ks_client = None
     _g_client = None
     _n_client = None
+    _c_client = None
     _auth_token = None
     _tmos_image_tool = None
     _image_dir = None
@@ -28,10 +30,10 @@ class ImageSync():
     def __init__(self):
         self._get_image_dir()
 
-    def _setup(self, tempdirectory):
+    def _setup(self, f5_image, tempdirectory):
         pass
 
-    def _teardown(self, tempdirectory):
+    def _tear_down(self, f5_image, tempdirectory):
         pass
 
     def _get_ksclient(self):
@@ -83,12 +85,27 @@ class ImageSync():
         return self._g_client
 
     def _get_compute_client(self):
-        """Get a Glance v1 client."""
-        if not self._g_client:
-            self._g_client = glanceclient.Client('1',
-                                    self._get_image_endpoint(),
-                                    token=self._get_auth_token())
-        return self._g_client
+        """Get a Nova 2 client."""
+        if not self._n_client:
+            creds = {}
+            creds['version'] = '2'
+            creds['username'] = env['OS_USERNAME']
+            creds['api_key'] = env['OS_PASSWORD']
+            creds['auth_url'] = env['OS_AUTH_URL']
+            creds['project_id'] = env['OS_TENANT_NAME']
+            self._n_client = nclient.Client(**creds)
+        return self._n_client
+
+    def _get_volume_client(self):
+        """Get Cinder v1 client."""
+        if not self._c_client:
+            self._c_client = cclient.Client(
+                env['OS_USERNAME'],
+                env['OS_PASSWORD'],
+                env['OS_TENANT_NAME'],
+                env['OS_AUTH_URL']
+            )
+        return self._c_client
 
     def _find_tmos_openstack_image_tool(self):
         self._tmos_image_tool = None
@@ -284,6 +301,16 @@ class ImageSync():
         print "Removing temporary build image %s" % new_image_file
         os.unlink(new_image_file)
 
+    def _create_volume_type(self, f5_image):
+        cinder = self._get_volume_client()
+        for vt in cinder.volume_types.list():
+            if vt.name == 'F5.DATASTOR':
+                break
+        else:
+            vt = cinder.volume_types.create('F5.DATASTOR')
+            vt.set_keys({'type': 'datastor'})
+            vt.set_keys({'vendor': 'F5 Networks'})
+
     def _create_volumes(self, f5_image, target_directory=None):
         if 'volumes' in f5_image and f5_image['volumes']:
             glance = self._get_image_client()
@@ -304,7 +331,7 @@ class ImageSync():
                             properties['os_version'] = f5_image['os_version']
                             properties['description'] = \
                                    'DATASTOR image for %s' % f5_image['name']
-                            f5vi = f5_image['volumes'][image_file]
+                            f5vi = volume[image_file]
                             new_image = \
                                 glance.images.create(
                                   name=volume_file,
@@ -324,7 +351,18 @@ class ImageSync():
                             new_image.update(data=open(new_image_file, 'rb'))
 
     def _create_flavor(self, f5_image):
-        pass
+        nova = self._get_compute_client()
+        for flavor in nova.flavors.list():
+            if f5_image['flavor'] == flavor.name:
+                break
+        else:
+            nova.flavors.create(
+                name=f5_image['flavor'],
+                vcpus=f5_image['vcpus'],
+                ram=f5_image['min-ram'],
+                disk=f5_image['min-disk'],
+                is_public=True
+            )
 
     def _find_startup_agent_script(self, startupfile):
         script_path = os.path.dirname(os.path.realpath(__file__))
@@ -431,10 +469,12 @@ class ImageSync():
                     add_image = strtobool(self._getch())
                 if add_image:
                     self._setup(f5_image, tempdirectory)
+                    self._create_volume_type(f5_image)
                     if self._download_f5_images(f5_image):
                         self._extract_disk_images(f5_image, tempdirectory)
                         self._create_base_image(f5_image, tempdirectory)
-                        self._create_volmes(f5_image, tempdirectory)
+                        self._create_volumes(f5_image, tempdirectory)
+                        self._create_volume_type(f5_image)
                         self._create_flavor(f5_image)
                     self._tear_down(f5_image, tempdirectory)
 

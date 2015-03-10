@@ -33,7 +33,7 @@
                 {
                     "BIGIP-11.5.2.0.0.141.DATASTOR.ALL": {
                         "volume_file": "BIGIP-11.5.2.0.0.141.DATASTOR.ALL.qcow2",
-                        "container_format": "raw",
+                        "container_format": "bare",
                         "disk_format": "qcow2",
                         "min-disk": 40,
                         "extra-specs": {
@@ -124,7 +124,7 @@
                 {
                     "BIGIP-11.6.0.0.0.401.DATASTOR.ALL": {
                         "volume_file": "BIGIP-11.6.0.0.0.401.DATASTOR.ALL.qcow2",
-                        "container_format": "raw",
+                        "container_format": "bare",
                         "disk_format": "qcow2",
                         "min-disk": 40,
                         "extra-specs": {
@@ -217,7 +217,7 @@
                 {
                     "BIGIP-11.6.0.0.0.401.DATASTOR.ALL": {
                         "volume_file": "BIGIP-11.6.0.0.0.401.DATASTOR.ALL.qcow2",
-                        "container_format": "raw",
+                        "container_format": "bare",
                         "disk_format": "qcow2",
                         "min-disk": 40,
                         "extra-specs": {

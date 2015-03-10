@@ -13,6 +13,7 @@ images/*.qcow2
 images/*.zip
 images/*.ova
 images/*.vhd
+images/login.*
 
 ### auto-added by Github
 
