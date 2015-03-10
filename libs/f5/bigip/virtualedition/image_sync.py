@@ -226,7 +226,7 @@ class ImageSync():
                                  "%s/%s" % (target_directory,
                                             f5_image['hf_iso_file']))
 
-    def _create_base_image(self, f5_image, target_directory=None):
+    def _create_disk_image(self, f5_image, target_directory=None):
         if not target_directory:
             target_directory = self._image_dir
         create_image = True
@@ -316,12 +316,12 @@ class ImageSync():
             glance = self._get_image_client()
             glance_images = glance.images.list()
             for volume in f5_image['volumes']:
-                for image_file in volume.keys():
+                for vi_name in volume.keys():
                     for image in glance_images:
-                        if image.name == image_file:
+                        if image.name == vi_name:
                             break
                     else:
-                        volume_file = volume[image_file]['volume_file']
+                        volume_file = volume[vi_name]['volume_file']
                         if os.path.isfile("%s/%s" % (target_directory,
                                                      volume_file)):
                             properties = {}
@@ -331,10 +331,10 @@ class ImageSync():
                             properties['os_version'] = f5_image['os_version']
                             properties['description'] = \
                                    'DATASTOR image for %s' % f5_image['name']
-                            f5vi = volume[image_file]
+                            f5vi = volume[vi_name]
                             new_image = \
                                 glance.images.create(
-                                  name=volume_file,
+                                  name=vi_name,
                                   disk_format=f5vi['disk_format'],
                                   container_format=f5vi['container_format'],
                                   min_disk=f5vi['min-disk'],
@@ -428,24 +428,32 @@ class ImageSync():
                 print "Can not parse JSON file %s" % bookmark_file
             bookmark_data.close()
             f5_images = bookmarks['bookmarks']
-            f5_images_to_add = []
+            f5_disk_images_to_add = []
+            f5_volume_images_to_add = []
             f5_images_to_remove = []
             glance = self._get_image_client()
-            images = glance.images.list()
+            images = list(glance.images.list())
+            existing_image_names = []
+            bookmark_image_names = []
+            volume_image_names = []
+            for image in images:
+                existing_image_names.append(image.name)
             for f5_image in f5_images:
-                for image in images:
-                    if image.name == f5_image['image_name']:
-                        break
-                else:
-                    f5_images_to_add.append(f5_image)
+                bookmark_image_names.append(f5_image['image_name'])
+                if f5_image['volumes']:
+                    for vi in f5_image['volumes']:
+                        for image_name in vi.keys():
+                            volume_image_names.append(image_name)
+                            if image_name not in existing_image_names:
+                                f5_volume_images_to_add.append(image_name)
+                if not f5_image['image_name'] in existing_image_names:
+                    f5_disk_images_to_add.append(f5_image)
             if removefromglance:
                 for image in images:
                     if 'os_vendor' in image.properties and \
-                       'os_vendor' == 'F5 Networks':
-                        for f5_image in f5_images:
-                            if f5_image['image_name'] == image.name:
-                                break
-                        else:
+                       image.properties['os_vendor'] == 'F5 Networks':
+                        if image.name not in bookmark_image_names and \
+                           image.name not in volume_image_names:
                             f5_images_to_remove.append(image)
                 for image in f5_images_to_remove:
                     remove_image = True
@@ -460,7 +468,11 @@ class ImageSync():
                         except:
                             print('Could not delete %s Glance image.'
                                   % image.name)
-            for f5_image in f5_images_to_add:
+            # base sync setup
+            self._setup(f5_image, tempdirectory)
+            # always check that datastor volume type created
+            self._create_volume_type(f5_image)
+            for f5_image in f5_disk_images_to_add:
                 add_image = True
                 if interactive:
                     sys.stdout.write(
@@ -468,15 +480,41 @@ class ImageSync():
                         % f5_image['name'])
                     add_image = strtobool(self._getch())
                 if add_image:
-                    self._setup(f5_image, tempdirectory)
-                    self._create_volume_type(f5_image)
                     if self._download_f5_images(f5_image):
                         self._extract_disk_images(f5_image, tempdirectory)
-                        self._create_base_image(f5_image, tempdirectory)
-                        self._create_volumes(f5_image, tempdirectory)
-                        self._create_volume_type(f5_image)
+                        self._create_disk_image(f5_image, tempdirectory)
                         self._create_flavor(f5_image)
-                    self._tear_down(f5_image, tempdirectory)
+                        if f5_image['volumes']:
+                            for vi in f5_image['volumes']:
+                                for image_name in vi.keys():
+                                    if image_name in f5_volume_images_to_add:
+                                        self._create_volumes(f5_image,
+                                                             tempdirectory)
+                                        f5_volume_images_to_add.remove(
+                                                                  image_name)
+            for vi_image in f5_volume_images_to_add:
+                for f5_image in f5_images:
+                    if f5_image['volumes']:
+                        for vi in f5_image['volumes']:
+                            for image_name in vi.keys():
+                                if image_name == vi_image:
+                                    add_image = True
+                                    if interactive:
+                                        sys.stdout.write(
+                                            "Add %s Glance Image? [y/n]: "
+                                            % image_name)
+                                        add_image = strtobool(self._getch())
+                                    if add_image:
+                                        self._extract_disk_images(
+                                            f5_image,
+                                            tempdirectory
+                                        )
+                                        self._create_volumes(
+                                            f5_image,
+                                            tempdirectory
+                                        )
+            # base sync tear_down
+            self._tear_down(f5_image, tempdirectory)
 
 
 def main():
