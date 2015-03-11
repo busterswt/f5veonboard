@@ -302,7 +302,7 @@ class ImageSync():
         print "Removing temporary build image %s" % new_image_file
         os.unlink(new_image_file)
 
-    def _create_volume_type(self, f5_image):
+    def _create_volume_type(self):
         cinder = self._get_volume_client()
         for vt in cinder.volume_types.list():
             if vt.name == 'F5.DATASTOR':
@@ -310,7 +310,7 @@ class ImageSync():
         else:
             vt = cinder.volume_types.create('F5.DATASTOR')
             vt.set_keys({'type': 'datastor'})
-            vt.set_keys({'vendor': 'F5 Networks'})
+            vt.set_keys({'vendor': 'f5_networks'})
 
     def _create_volumes(self, f5_image, target_directory=None):
         if 'volumes' in f5_image and f5_image['volumes']:
@@ -478,7 +478,7 @@ class ImageSync():
             # base sync setup
             self._setup(tempdirectory)
             # always check that datastor volume type created
-            self._create_volume_type(f5_image)
+            self._create_volume_type()
             for f5_image in f5_disk_images_to_add:
                 add_image = True
                 if interactive:
