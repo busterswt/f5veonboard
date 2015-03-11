@@ -30,10 +30,10 @@ class ImageSync():
     def __init__(self):
         self._get_image_dir()
 
-    def _setup(self, f5_image, tempdirectory):
+    def _setup(self, tempdirectory):
         pass
 
-    def _tear_down(self, f5_image, tempdirectory):
+    def _tear_down(self, tempdirectory):
         pass
 
     def _get_ksclient(self):
@@ -281,6 +281,7 @@ class ImageSync():
         properties['os_type'] = f5_image['os_type']
         properties['os_vendor'] = f5_image['os_vendor']
         properties['os_version'] = f5_image['os_version']
+        properties['nova_flavor'] = f5_image['flavor']
         properties['description'] = f5_image['image_description']
         glance = self._get_image_client()
         new_image = glance.images.create(
@@ -365,6 +366,8 @@ class ImageSync():
             )
 
     def _find_startup_agent_script(self, startupfile):
+        if os.path.isfile(startupfile):
+            return startupfile
         script_path = os.path.dirname(os.path.realpath(__file__))
         cwd = os.getcwd()
         if os.path.isfile("%s/agents/%s" % (cwd, startupfile)):
@@ -374,6 +377,8 @@ class ImageSync():
         return None
 
     def _find_userdata_file(self, userdatafile):
+        if os.path.isfile(userdatafile):
+            return userdatafile
         script_path = os.path.dirname(os.path.realpath(__file__))
         cwd = os.getcwd()
         if os.path.isfile("%s/includes/%s" % (cwd, userdatafile)):
@@ -383,6 +388,8 @@ class ImageSync():
         return None
 
     def _find_bookmark_file(self, bookmarkfile):
+        if os.path.isfile(bookmarkfile):
+            return bookmarkfile
         script_path = os.path.dirname(os.path.realpath(__file__))
         cwd = os.getcwd()
         if os.path.isfile("%s/includes/%s" % (cwd, bookmarkfile)):
@@ -469,7 +476,7 @@ class ImageSync():
                             print('Could not delete %s Glance image.'
                                   % image.name)
             # base sync setup
-            self._setup(f5_image, tempdirectory)
+            self._setup(tempdirectory)
             # always check that datastor volume type created
             self._create_volume_type(f5_image)
             for f5_image in f5_disk_images_to_add:
@@ -514,7 +521,7 @@ class ImageSync():
                                             tempdirectory
                                         )
             # base sync tear_down
-            self._tear_down(f5_image, tempdirectory)
+            self._tear_down(tempdirectory)
 
 
 def main():
