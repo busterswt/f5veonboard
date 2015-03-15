@@ -458,7 +458,7 @@ class ImageSync():
             if removefromglance:
                 for image in images:
                     if 'os_vendor' in image.properties and \
-                       image.properties['os_vendor'] == 'F5 Networks':
+                       image.properties['os_vendor'] == 'f5_networks':
                         if image.name not in bookmark_image_names and \
                            image.name not in volume_image_names:
                             f5_images_to_remove.append(image)

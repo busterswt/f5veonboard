@@ -58,6 +58,10 @@ OS_VLAN_DESCRIPTION="auto-added by openstack-init"
 OS_SELFIP_PREFIX="openstack-dhcp-"
 OS_SELFIP_ALLOW_SERVICE="none"
 OS_SELFIP_DESCRIPTION="auto-added by openstack-init"
+OS_DEVICE_SYNC="false"
+OS_DEVICE_FAILOVER="false"
+OS_DEVICE_MIRROR_PRIMARY="false"
+OS_DEVICE_MIRROR_SECONDARY="false"
 
 # Regular expressions
 LEVEL_REGEX='^(dedicated|minimum|nominal|none)$'
@@ -90,6 +94,15 @@ function get_user_data_value() {
 function get_user_data_system_cmds() {
   echo -n $(perl -MJSON -ne "print join(';;', \
   @{decode_json(\$_)->{bigip}{system_cmds}})" $OS_USER_DATA_TMP_FILE)
+}
+
+function get_user_data_network_routes() {
+  echo -n $(perl -MJSON -ne "\$data = decode_json(\$_); \
+  foreach \$route (@{\$data->{'bigip'}->{'network'}->{'routes'}}) { \
+   foreach \$rn (keys %{\$route}){ \
+    print \$rn.\";\".\$route->{\$rn}->{'destination'}.\";\".\$route->{\$rn}->{'gateway'}.\"|\"; \
+   } \
+  }" $OS_USER_DATA_TMP_FILE)
 }
 
 function generate_sha512_passwd_hash() {
@@ -218,7 +231,10 @@ function get_user_data() {
 	log "Could not retrieve user-data after $OS_USER_DATA_RETRIES attempts, trying local policy..."
 	if [[ -f $OS_USER_DATA_LOCAL_FILE ]]; then
       log "Found locally installed $OS_USER_DATA_LOCAL_FILE. Using local file for user data."
-      cp OS_USER_DATA_LOCAL_FILE $OS_USER_DATA_TMP_FILE
+      # remove newlines and repeated whitespace from JSON to appease Perl JSON \
+      # module
+      cat OS_USER_DATA_LOCAL_FILE | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+      > $OS_USER_DATA_TMP_FILE
       chmod 0600 $OS_USER_DATA_TMP_FILE
     else
 	  return 1
@@ -402,6 +418,10 @@ function set_tmm_if_selfip() {
     selfip_name=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{selfip_name})
     selfip_description=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{selfip_description})
     selfip_allow_service=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{selfip_allow_service})
+    device_is_sync=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_sync})
+    device_is_failover=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_failover})
+    device_is_mirror_primary=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_mirror_primary})
+    device_is_mirror_secondary=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_mirror_secondary})
     
     [[ -z $vlan_prefix ]] && vlan_prefix=$OS_VLAN_PREFIX
     [[ -z $vlan_name ]] && vlan_name="${vlan_prefix}${tmm_if}"
@@ -410,6 +430,10 @@ function set_tmm_if_selfip() {
     [[ -z $selfip_name ]] && selfip_name="${selfip_prefix}${tmm_if}"
     [[ -z $selfip_description ]] && selfip_description=$OS_SELFIP_DESCRIPTION
     [[ -z $selfip_allow_service ]] && selfip_allow_service=$OS_SELFIP_ALLOW_SERVICE
+    [[ -z $device_is_sync ]] && device_is_sync=$OS_DEVICE_SYNC  
+    [[ -z $device_is_failover ]] && device_is_failover=$OS_DEVICE_FAILOVER
+    [[ -z $device_is_mirror_primary ]] && device_is_mirror_primary=$OS_DEVICE_MIRROR_PRIMARY
+    [[ -z $device_is_mirror_secondary ]] && device_is_mirror_secondary=$OS_DEVICE_MIRROR_SECONDARY    
     
     if [[ $dhcp_enabled == false ]]; then
       log "Configuring self IP $selfip_name on VLAN $vlan_name with static address $address/$netmask..."
@@ -426,6 +450,48 @@ function set_tmm_if_selfip() {
     selfip_cmd="tmsh create net self $selfip_name address $address/$netmask allow-service $selfip_allow_service vlan $vlan_name description \"$selfip_description\""
     log "  $selfip_cmd"
     eval "$selfip_cmd 2>&1 | $LOGGER_CMD"
+    
+    if [[ $device_is_sync == true ]]; then
+      log "Configuring self IP $selfip_name as the device config sync interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      tmsh modify /cm device $local_device_name { configsync-ip $address }
+    fi
+    
+    if [[ $device_is_failover == true ]]; then
+      log "Configuring self IP $selfip_name as a device unicast failover interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      if [[ -z $unicast_failover_addresses ]]; then
+          unicast_failover_address=($address)
+          tmsh modify /cm device $local_device_name unicast-address { { effective-ip $address effective-port 1026 ip $address } }
+      else
+          unicast_failover_addresses+=($address)
+          ua_list="{"
+          for i in ${unicast_failover_addresses[@]}; do ua_list="$ua_list { effective-ip ${i} effective-port 1026 ip ${i} }"; done
+          ua_list="${ua_list} }"
+          tmsh modify /cm device $local_device_name unicast-address $ua_list               
+      fi
+    fi
+    
+    if [[ $device_is_mirror_primary == true ]]; then
+      log "Configuring self IP $selfip_name as the device primary mirroring interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      tmsh modify /cm device $local_device_name mirror-ip $address
+    fi
+
+    if [[ $device_is_mirror_secondary == true ]]; then
+      log "Configuring self IP $selfip_name as the device secondary mirroring interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      tmsh modify /cm device $local_device_name mirror-secondary-ip $address
+    fi    
+    
   fi
 }
 
@@ -575,6 +641,15 @@ function configure_tmm_ifs() {
   tmsh save sys config | eval $LOGGER_CMD
 }
 
+function configure_global_routes() {
+  routes=$(get_user_data_network_routes)
+  for route in $(echo $routes | tr "|" "\n"); do
+     re=($(echo $route | tr ";" "\n"));
+     log "Adding global route ${re[0]} destination ${re[1]} gateway ${re[2]}..."
+     tmsh create /net route ${re[1]} gw ${re[2]}
+  done
+}
+
 function execute_system_cmd() {
   system_cmds=$(get_user_data_system_cmds)
   
@@ -635,7 +710,7 @@ function main() {
   # the DMI variables will be wrong
   # when quaried by halid. 
   #
-  # Why not just decide to work?  
+  # Skip this:
   #
   #if [ -f /PLATFORM ]; then
   #  . /PLATFORM
@@ -647,7 +722,8 @@ function main() {
   #fi
   #
 
-  # We are ALWAYS a VE
+  # Why not just decide to work?  
+  # We are always a VE
   force_platform_id
 
   # First boot flag file and policy
@@ -696,6 +772,8 @@ function main() {
         # setup license and provisioned modules
         wait_tmm_started
         license_and_provision_modules
+        # setup global routes
+        configure_global_routes
         # execute command list
         execute_system_cmd
       else
