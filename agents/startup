@@ -99,9 +99,7 @@ function get_user_data_system_cmds() {
 function get_user_data_network_routes() {
   echo -n $(perl -MJSON -ne "\$data = decode_json(\$_); \
   foreach \$route (@{\$data->{'bigip'}->{'network'}->{'routes'}}) { \
-   foreach \$rn (keys %{\$route}){ \
-    print \$rn.\";\".\$route->{\$rn}->{'destination'}.\";\".\$route->{\$rn}->{'gateway'}.\"|\"; \
-   } \
+    print \$route->{'destination'}.\";\".\$route->{'gateway'}.\"|\"; \
   }" $OS_USER_DATA_TMP_FILE)
 }
 
@@ -645,8 +643,8 @@ function configure_global_routes() {
   routes=$(get_user_data_network_routes)
   for route in $(echo $routes | tr "|" "\n"); do
      re=($(echo $route | tr ";" "\n"));
-     log "Adding global route ${re[0]} destination ${re[1]} gateway ${re[2]}..."
-     tmsh create /net route ${re[1]} gw ${re[2]}
+     log "Adding global route destination ${re[0]} gateway ${re[1]}..."
+     tmsh create /net route ${re[0]} gw ${re[1]}
   done
 }
 
