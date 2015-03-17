@@ -289,7 +289,6 @@ class Cluster(object):
                                                      name,
                                                      '', '',
                                                      '', '')
-                time.sleep(const.PEER_ADD_ATTEMPT_DELAY)
                 attempts = 0
                 while attempts < const.PEER_ADD_ATTEMPTS_MAX:
                     if self.get_sync_status() == "OFFLINE":

@@ -476,7 +476,7 @@ class Device(object):
             str_comment = device_dict
 
         request_url = self.bigip.icr_url + '/cm/device/~Common~'
-        request_url += str(name)
+        request_url += name
         payload = dict()
         payload['description'] = base64.encodestring(str_comment)
         response = self.bigip.icr_session.put(
@@ -515,7 +515,7 @@ class Device(object):
                     return base64.decodestring(str_comment)
                 except:
                     return str_comment
-        return {}
+        return None
 
     @log
     def remove_metadata(self, name=None, remove_dict=None):

@@ -20,7 +20,7 @@ from novaclient import client as compclient
 from cinderclient.v1 import client as volclient
 from neutronclient.neutron import client as netclient
 from uuid import UUID
-from f5.bigip import bigip
+from f5.bigip import bigip as f5orch
 from f5.common import constants as f5const
 
 
@@ -924,6 +924,65 @@ class F5Manager():
         if build_dsg:
             self.build_cluster(user_file_name)
 
+    def _hostname_from_address(self, address):
+        """Address-based hostname"""
+        return 'host-' + address.replace('.', '-') + '.openstacklocal'
+
+    def _get_device_state(self, bigip, failover_states):
+        """Determine level of device initialization"""
+        results = {}
+        # check license
+        license_status = \
+            bigip.system.mgmt_license.get_license_activation_status()
+        if license_status == 'STATE_ENABLED':
+            results['license'] = True
+
+            # check that config is loaded
+            vlan_list = bigip.vlan.net_vlan.get_list()
+            if '/Common/vlan.datanet' in vlan_list:
+                results['config_loaded'] = True
+
+                # check for db var set at the end of the startup
+                dbval = bigip.system.mgmt_dbvar.query(
+                    ['ui.system.preferences.screenrefreshinterval'])
+                if dbval[0]['value'] == '10':
+                    results['startup_script'] = True
+
+                    # get failover state
+                    failover_state = \
+                       bigip.system.sys_failover.get_failover_state()
+
+                    # check failover state
+                    results['failover_state'] = failover_state
+                    if failover_state in failover_states:
+                        results['failover'] = True
+        return results
+
+    def wait_for_trust_group_sync(self, bigip,
+                                  ok_status="In Sync", retry_delay=10):
+        """Wait until trust group is in sync"""
+        print 'Wait until device_trust_group is in sync...'
+        for _ in range(0, 60):
+            try:
+                sync_status = \
+                    self.bigip.cluster.mgmt_dg.get_sync_status(\
+                                                     ['device_trust_group'])
+                print 'device_trust_group sync status: %s, %s' % \
+                      (sync_status[0].color, sync_status[0].status)
+                if sync_status[0].color == 'COLOR_GREEN' and \
+                   sync_status[0].status == ok_status:
+                    print 'device_trust_group is in sync.'
+                    return
+            # pylint: disable=broad-except
+            except Exception, exception:
+                print 'Eating exception - %s' % exception
+            # pylint: enable=broad-except
+            print 'Sleep %d seconds.' % retry_delay
+            time.sleep(retry_delay)
+
+        raise Exception('device_trust_group not in sync - status: %s, %s' % \
+                        (sync_status[0].color, sync_status[0].status))
+
     def build_cluster(self, policy_file):
         fd = open(policy_file, 'r')
         json_data = fd.read()
@@ -937,6 +996,7 @@ class F5Manager():
             icontrol_password = None
 
             for instance in policy['bigips']:
+
                 guest_name = "%s_%d" % (policy['f5_device_group'],
                                         inst_index)
                 if not icontrol_password:
@@ -987,26 +1047,30 @@ class F5Manager():
                     nova = self._get_compute_client()
                     nova.servers.create(**create_args)
 
-            primary_icontrol_host = None
-            primary_device_name = None
-            device_names = {}
+            primary_bigip = None
+            bigips = {}
 
-            while len(device_names) + 1 < len(policy['bigips']):
+            while len(bigips) + 1 < len(policy['bigips']):
                 bigip_instances = self._discover_tmos_instances_by_os_vendor()
-                for bi in bigip_instances:
-                    if 'f5_device_group' in bi.metadata and \
-                       bi.metadata['f5_device_group'] == \
+                for nova_guest in bigip_instances:
+                    if 'f5_device_group' in nova_guest.metadata and \
+                       nova_guest.metadata['f5_device_group'] == \
                        policy['f5_device_group']:
-                        if 'f5_device_group_primary_device' in bi.metadata:
-                            if bi.metadata[
+                        if 'f5_device_group_primary_device' in \
+                                                         nova_guest.metadata:
+                            if nova_guest.metadata[
                                  'f5_device_group_primary_device'] == 'true':
-                                primary_device_name = bi.name
-                        networks = bi.networks
+                                primary_device_name = nova_guest.name
+                        networks = nova_guest.networks
                         if management_network_name in networks:
                             ip_addresses = networks[management_network_name]
-                            device_names[bi.name] = ip_addresses[0]
-                            if primary_device_name == bi.name:
-                                primary_icontrol_host = ip_addresses[0]
+                            bigips[nova_guest.name] = f5orch.BigIP(
+                                                        ip_addresses[0],
+                                                        icontrol_username,
+                                                        icontrol_password
+                                                     )
+                            if primary_device_name == nova_guest.name:
+                                primary_icontrol_host = bigips[nova_guest.name]
                 print "Waiting IP addresses allocations"
                 time.sleep(5)
 
@@ -1021,14 +1085,12 @@ class F5Manager():
                 else:
                     time.sleep(5)
             icontrol_not_available = True
+
             start_time = time.time()
             icontrol_available_states = ['active', 'standby']
             while icontrol_not_available:
                 print "Waiting for TMOS control plane to be available."
                 try:
-                    primary_bigip = bigip.BigIP(primary_icontrol_host,
-                                                icontrol_username,
-                                                icontrol_password)
                     primary_bigip.set_timeout(5)
                     state = primary_bigip.device.get_failover_state()
                     if state in icontrol_available_states:
@@ -1036,75 +1098,61 @@ class F5Manager():
                     else:
                         print "   iControl connected, but state is %s" % state
                 except AttributeError:
-                    print "   no APIs available.. likely not licensed yet."
+                    print "   iControl APIs are not available yet."
                 except Exception as e:
                     print "   attempt failed with %s: %s" % \
                                                      (e.__class__, e.message)
                 if time.time() - start_time > 600:
                     print 'Giving up after 10 minutes. Create manually.'
                     print 'Launched management endpoints:'
-                    for host in device_names.values():
-                        print '    https://%s:443' % host
+                    for host in bigips.values():
+                        print '    https://%s:443' % host.icontrol.hostname
                     sys.exit(1)
                 else:
                     time.sleep(10)
 
+            need_as_peer = []
             try:
-                for dn in device_names:
-                    host = device_names[dn]
-                    host_bigip = bigip.BigIP(host,
-                                             icontrol_username,
-                                             icontrol_password)
+                for device_name in bigips:
+                    ibigip = bigips[device_name]
+                    ibigip.system.set_hostname("%s.openstack.local" % \
+                                               device_name)
                     print "Resetting %s device name to %s" \
-                           % (host, dn)
-                    host_bigip.cluster.remove_all_devices(
+                           % (host, device_name)
+                    ibigip.cluster.remove_all_devices(
                                 name=policy['f5_device_group'])
-                    host_bigip.device.reset_trust(dn)
+                    ibigip.device.reset_trust(device_name)
+                    if not ibigip.icontrol.hostname == \
+                           primary_bigip.icontrol.hostname:
+                        need_as_peer.append(ibigip)
             except Exception as e:
                 print "Error resetting device name and trust on %s : %s" % \
                       (host, e.message)
                 sys.exit(1)
 
-            if True:
-            #try:
-                primary_bigip = bigip.BigIP(primary_icontrol_host,
-                                                icontrol_username,
-                                                icontrol_password)
-                primary_bigip.set_timeout(5)
-                for dn in device_names:
-                    if not dn == primary_device_name:
-                        print "Adding %s as a peer to %s" \
-                               % (dn, primary_device_name)
-                        host = device_names[dn]
-                        primary_bigip.cluster.add_peer(dn,
-                                                       host,
-                                                       icontrol_username,
-                                                       icontrol_password)
-            #except Exception as e:
-            #    print "Error adding devices to %s: %s" % \
-            #    (primary_icontrol_host, e.message)
-            #    raise e
-            #    sys.exit(1)
-
             try:
-                print "Creating device service group %s" \
-                      % policy['f5_device_group']
+                print "Creating device service group %s" % \
+                       policy['f5_device_group']
                 primary_bigip.cluster.create(policy['f5_device_group'], False)
-                print "Adding devices to service group"
-                primary_bigip.cluster.add_devices(policy['f5_device_group'],
-                                                  device_names.keys())
-                time.sleep(f5const.PEER_ADD_ATTEMPT_DELAY)
-            except Exception as e:
-                print "Error device group creation. %s : %s" % \
-                                                   (e.__class__, e.message)
-                sys.exit(1)
-
-            try:
+                device_names = [primary_bigip.device.get_device_name()]
+                for bigip in need_as_peer:
+                    device_name = bigip.device.get_device_name()
+                    primary_bigip.cluster.add_peer(
+                        device_name,
+                        bigip.icontrol.hostname,
+                        icontrol_username,
+                        icontrol_password)
+                    self.wait_for_trust_group_sync(primary_bigip)
+                primary_bigip.cluster.add_devices(
+                                        policy['f5_device_group'],
+                                        device_names)
+                time.sleep(5)
                 print "Syncing group %s" % policy['f5_device_group']
                 primary_bigip.cluster.sync(policy['f5_device_group'])
             except Exception as e:
-                print "Error device groip creation. %s : %s" % \
-                                                   (e.__class__, e.message)
+                print "Error adding devices to %s: %s" % \
+                (primary_icontrol_host, e.message)
+                raise e
                 sys.exit(1)
 
 
