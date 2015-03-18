@@ -965,9 +965,9 @@ class F5Manager():
         for _ in range(0, 60):
             try:
                 sync_status = \
-                    self.bigip.cluster.mgmt_dg.get_sync_status(\
+                    bigip.cluster.mgmt_dg.get_sync_status(\
                                                      ['device_trust_group'])
-                print 'device_trust_group sync status: %s, %s' % \
+                print 'Device_trust_group sync status: %s, %s' % \
                       (sync_status[0].color, sync_status[0].status)
                 if sync_status[0].color == 'COLOR_GREEN' and \
                    sync_status[0].status == ok_status:
@@ -977,7 +977,6 @@ class F5Manager():
             except Exception, exception:
                 print 'Eating exception - %s' % exception
             # pylint: enable=broad-except
-            print 'Sleep %d seconds.' % retry_delay
             time.sleep(retry_delay)
 
         raise Exception('device_trust_group not in sync - status: %s, %s' % \
@@ -1056,11 +1055,6 @@ class F5Manager():
                     if 'f5_device_group' in nova_guest.metadata and \
                        nova_guest.metadata['f5_device_group'] == \
                        policy['f5_device_group']:
-                        if 'f5_device_group_primary_device' in \
-                                                         nova_guest.metadata:
-                            if nova_guest.metadata[
-                                 'f5_device_group_primary_device'] == 'true':
-                                primary_device_name = nova_guest.name
                         networks = nova_guest.networks
                         if management_network_name in networks:
                             ip_addresses = networks[management_network_name]
@@ -1069,17 +1063,21 @@ class F5Manager():
                                                         icontrol_username,
                                                         icontrol_password
                                                      )
-                            if primary_device_name == nova_guest.name:
-                                primary_icontrol_host = bigips[nova_guest.name]
+                        if 'f5_device_group_primary_device' in \
+                                                         nova_guest.metadata:
+                            if nova_guest.metadata[
+                                 'f5_device_group_primary_device'] == 'true':
+                                primary_bigip = bigips[nova_guest.name]
                 print "Waiting IP addresses allocations"
                 time.sleep(5)
 
             not_connected = True
             while not_connected:
                 print "Attempting to connect to primary host %s:%d" % \
-                      (primary_icontrol_host, 443)
+                      (primary_bigip.icontrol.hostname, 443)
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                tls_open = sock.connect_ex((primary_icontrol_host, 443))
+                tls_open = sock.connect_ex(
+                                 (primary_bigip.icontrol.hostname, 443))
                 if tls_open == 0:
                     not_connected = False
                 else:
@@ -1112,22 +1110,34 @@ class F5Manager():
                     time.sleep(10)
 
             need_as_peer = []
+            current_host = None
             try:
-                for device_name in bigips:
-                    ibigip = bigips[device_name]
+                for dn in bigips:
+                    ibigip = bigips[dn]
+                    current_host = ibigip.icontrol.hostname
                     ibigip.system.set_hostname("%s.openstack.local" % \
-                                               device_name)
+                                               dn)
                     print "Resetting %s device name to %s" \
-                           % (host, device_name)
+                           % (current_host, dn)
                     ibigip.cluster.remove_all_devices(
                                 name=policy['f5_device_group'])
-                    ibigip.device.reset_trust(device_name)
+                    reset_tries = 5
+                    while reset_tries > 0:
+                        try:
+                            ibigip.device.reset_trust(dn)
+                            break
+                        except Exception as e:
+                            if reset_tries < 2:
+                                raise e
+                            else:
+                                reset_tries -= 1
+                                pass
                     if not ibigip.icontrol.hostname == \
-                           primary_bigip.icontrol.hostname:
-                        need_as_peer.append(ibigip)
+                                 primary_bigip.icontrol.hostname:
+                            need_as_peer.append(ibigip)
             except Exception as e:
                 print "Error resetting device name and trust on %s : %s" % \
-                      (host, e.message)
+                      (current_host, e.message)
                 sys.exit(1)
 
             try:
@@ -1151,7 +1161,7 @@ class F5Manager():
                 primary_bigip.cluster.sync(policy['f5_device_group'])
             except Exception as e:
                 print "Error adding devices to %s: %s" % \
-                (primary_icontrol_host, e.message)
+                (primary_bigip.icontrol.hostname, e.message)
                 raise e
                 sys.exit(1)
 

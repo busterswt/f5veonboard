@@ -29,8 +29,10 @@ class Cluster(object):
     def __init__(self, bigip):
         self.bigip = bigip
 
-        self.bigip.icontrol.add_interfaces(['Management.Trust'])
+        self.bigip.icontrol.add_interfaces(['Management.Trust',
+                                            'Management.DeviceGroup'])
         self.mgmt_trust = self.bigip.icontrol.Management.Trust
+        self.mgmt_dg = self.bigip.icontrol.Management.DeviceGroup
 
     @log
     def get_sync_status(self):
