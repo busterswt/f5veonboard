@@ -17,7 +17,16 @@ function validate_packages() {
     is_neutronclient_installed=`dpkg --get-selections python-neutronclient|grep install|wc -l`
     is_eventlet_installed=`dpkg --get-selections python-eventlet|grep install|wc -l`
     
-    if ! [ $is_suds_installed == 1 -a $is_keystoneclient_installed == 1 -a $is_glanceclient_installed == 1  -a  $is_novaclient_installed == 1 -a $is_cinderclient_installed == 1 -a $is_neutronclient_installed == 1 -a $is_eventlet_installed ==1]
+    need_install=0
+    
+    if ! [ $is_keystoneclient_installed==1 ]; then need_install=1; fi
+    if ! [ $is_glanceclient_installed==1 ]; then need_install=1; fi 
+    if ! [ $is_novaclient_installed==1 ]; then need_install=1; fi
+    if ! [ $is_cinderclient_installed==1 ]; then need_install=1; fi
+    if ! [ $is_neutronclient_installed==1 ]; then need_install=1; fi 
+    if ! [ $is_eventlet_installed==1 ]; then need_install=1; fi
+    
+    if [ $need_install -eq 1 ]
     then 
         echo Running apt-get update....
         sudo apt-get update 
@@ -69,6 +78,7 @@ validate_os_creds
 SCRIPTDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 CMD="$SCRIPTDIR/libs/f5/bigip/virtualedition/instances.py"
+export PYTHONPATH=$SCRIPTDIR/libs
 
 if [ -f "${CMD}" ]; then
     eval ${CMD} "$@"

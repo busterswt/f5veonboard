@@ -971,7 +971,7 @@ class F5Manager():
                       (sync_status[0].color, sync_status[0].status)
                 if sync_status[0].color == 'COLOR_GREEN' and \
                    sync_status[0].status == ok_status:
-                    print 'device_trust_group is in sync.'
+                    print 'Peer device_trust_group is in sync.'
                     return
             # pylint: disable=broad-except
             except Exception, exception:
@@ -1046,7 +1046,12 @@ class F5Manager():
                     nova = self._get_compute_client()
                     nova.servers.create(**create_args)
 
+            print "Letting guest instances allocate addresses."
+            time.sleep(10)
+
             primary_bigip = None
+            primary_device_name = None
+
             bigips = {}
 
             while len(bigips) + 1 < len(policy['bigips']):
@@ -1058,48 +1063,51 @@ class F5Manager():
                         networks = nova_guest.networks
                         if management_network_name in networks:
                             ip_addresses = networks[management_network_name]
+                            print "Creating iControl session for %s at %s" \
+                                   % (nova_guest.name, ip_addresses[0])
                             bigips[nova_guest.name] = f5orch.BigIP(
                                                         ip_addresses[0],
                                                         icontrol_username,
                                                         icontrol_password
                                                      )
-                        if 'f5_device_group_primary_device' in \
+                            if 'f5_device_group_primary_device' in \
                                                          nova_guest.metadata:
-                            if nova_guest.metadata[
-                                 'f5_device_group_primary_device'] == 'true':
-                                primary_bigip = bigips[nova_guest.name]
-                print "Waiting IP addresses allocations"
+                                if nova_guest.metadata[
+                            'f5_device_group_primary_device'] == 'true':
+                                    primary_bigip = bigips[nova_guest.name]
+
+            connected_hosts = {}
+            while len(connected_hosts.keys()) < len(policy['bigips']):
+                for guest_name in bigips:
+                    host = bigips[guest_name].icontrol.hostname
+                    if not host in connected_hosts.keys():
+                        print "Attempting to connect to host %s:%d" % \
+                              (host, 443)
+                        sock = socket.socket(socket.AF_INET,
+                                             socket.SOCK_STREAM)
+                        tls_open = sock.connect_ex(
+                                 (host, 443))
+                    if tls_open == 0:
+                        connected_hosts[host] = 1
                 time.sleep(5)
 
-            not_connected = True
-            while not_connected:
-                print "Attempting to connect to primary host %s:%d" % \
-                      (primary_bigip.icontrol.hostname, 443)
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                tls_open = sock.connect_ex(
-                                 (primary_bigip.icontrol.hostname, 443))
-                if tls_open == 0:
-                    not_connected = False
-                else:
-                    time.sleep(5)
-            icontrol_not_available = True
-
+            icontrol_hosts = {}
             start_time = time.time()
-            icontrol_available_states = ['active', 'standby']
-            while icontrol_not_available:
-                print "Waiting for TMOS control plane to be available."
-                try:
-                    primary_bigip.set_timeout(5)
-                    state = primary_bigip.device.get_failover_state()
-                    if state in icontrol_available_states:
-                        icontrol_not_available = False
-                    else:
-                        print "   iControl connected, but state is %s" % state
-                except AttributeError:
-                    print "   iControl APIs are not available yet."
-                except Exception as e:
-                    print "   attempt failed with %s: %s" % \
-                                                     (e.__class__, e.message)
+
+            while len(icontrol_hosts.keys()) < len(policy['bigips']):
+                for dn in bigips:
+                    print "Trying iControl to host: %s" % \
+                                    bigips[dn].icontrol.hostname
+                    ibigip = bigips[dn]
+                    ibigip.set_timeout(5)
+                    try:
+                        results = primary_bigip.icr_session.get(
+                              primary_bigip.icr_url + '/sys/license')
+                        if results.status_code == 200:
+                            print "%s is available." % dn
+                            icontrol_hosts[bigips[dn].icontrol.hostname] = 1
+                    except:
+                        pass
                 if time.time() - start_time > 600:
                     print 'Giving up after 10 minutes. Create manually.'
                     print 'Launched management endpoints:'
@@ -1107,49 +1115,71 @@ class F5Manager():
                         print '    https://%s:443' % host.icontrol.hostname
                     sys.exit(1)
                 else:
+                    time.sleep(5)
+
+            icontrol_available_states = ['active', 'standby']
+            icontrol_not_available = True
+            while icontrol_not_available:
+                try:
+                    state = primary_bigip.device.get_failover_state()
+                    if state in icontrol_available_states:
+                        icontrol_not_available = False
+                    else:
+                        print "   iControl connected, but state is %s" % state
+                        time.sleep(10)
+                except Exception as e:
+                    print "   iControl APIs error retrying."
                     time.sleep(10)
 
             need_as_peer = []
-            current_host = None
-            try:
-                for dn in bigips:
-                    ibigip = bigips[dn]
-                    current_host = ibigip.icontrol.hostname
-                    ibigip.system.set_hostname("%s.openstack.local" % \
-                                               dn)
-                    print "Resetting %s device name to %s" \
-                           % (current_host, dn)
-                    ibigip.cluster.remove_all_devices(
-                                name=policy['f5_device_group'])
-                    reset_tries = 5
-                    while reset_tries > 0:
-                        try:
-                            ibigip.device.reset_trust(dn)
+            for dn in bigips:
+                ibigip = bigips[dn]
+                current_host = ibigip.icontrol.hostname
+                print "Resetting %s hostname to %s" % \
+                            (current_host, "%s.openstack.local" % dn)
+                ibigip.system.set_hostname("%s.openstack.local" % dn)
+                print "Resetting %s device name to %s" % \
+                            (current_host, dn)
+                reset_tries = 10
+                while reset_tries > 0:
+                    try:
+                        ibigip.device.mgmt_trust.reset_all(dn,
+                                                           False,
+                                                            '', '')
+                        time.sleep(5)
+                        if ibigip.device.get_device_name() == dn:
                             break
-                        except Exception as e:
-                            if reset_tries < 2:
-                                raise e
-                            else:
-                                reset_tries -= 1
-                                pass
-                    if not ibigip.icontrol.hostname == \
-                                 primary_bigip.icontrol.hostname:
-                            need_as_peer.append(ibigip)
-            except Exception as e:
-                print "Error resetting device name and trust on %s : %s" % \
-                      (current_host, e.message)
-                sys.exit(1)
+                        else:
+                            reset_tries -= 1
+                    except Exception as e:
+                        if reset_tries < 2:
+                            raise e
+                        else:
+                            reset_tries -= 1
+                            pass
+
+                if not ibigip.icontrol.hostname == \
+                  primary_bigip.icontrol.hostname:
+                    need_as_peer.append(dn)
+                else:
+                    primary_device_name = dn
 
             try:
                 print "Creating device service group %s" % \
                        policy['f5_device_group']
                 primary_bigip.cluster.create(policy['f5_device_group'], False)
-                device_names = [primary_bigip.device.get_device_name()]
-                for bigip in need_as_peer:
-                    device_name = bigip.device.get_device_name()
+                device_names = [primary_device_name]
+                for device_name in need_as_peer:
+                    device_names.append(device_name)
+                    print "Peering %s:%s to %s:%s" % (
+                                device_name,
+                                bigips[device_name].icontrol.hostname,
+                                primary_device_name,
+                                primary_bigip.icontrol.hostname
+                                )
                     primary_bigip.cluster.add_peer(
                         device_name,
-                        bigip.icontrol.hostname,
+                        bigips[device_name].icontrol.hostname,
                         icontrol_username,
                         icontrol_password)
                     self.wait_for_trust_group_sync(primary_bigip)
