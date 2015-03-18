@@ -14,13 +14,15 @@ function validate_packages() {
     is_glanceclient_installed=`dpkg --get-selections python-glanceclient|grep install|wc -l`
     is_novaclient_installed=`dpkg --get-selections python-novaclient|grep install|wc -l`
     is_cinderclient_installed=`dpkg --get-selections python-cinderclient|grep install|wc -l`
+    is_neutronclient_installed=`dpkg --get-selections python-neutronclient|grep install|wc -l`
+    is_greenthreads_installed=`dpkg --get-selections python-greenlet|grep install|wc -l`
     
-    if ! [ $is_suds_installed == 1 -a $is_keystoneclient_installed == 1 -a $is_glanceclient_installed == 1  -a  $is_novaclient_installed == 1 -a $is_cinderclient_installed == 1 ]
+    if ! [ $is_suds_installed == 1 -a $is_keystoneclient_installed == 1 -a $is_glanceclient_installed == 1  -a  $is_novaclient_installed == 1 -a $is_cinderclient_installed == 1 -a $is_neutronclient_installed == 1 -a $is_greenthreads_installed ==1]
     then 
         echo Running apt-get update....
         sudo apt-get update 
-        echo Running apt-get install python-suds python-keystoneclient python-glanceclient python-novaclient python-cinderclient
-        sudo apt-get -y install python-suds python-keystoneclient python-glanceclient python-novaclient python-cinderclient 
+        echo Running apt-get install python-suds python-keystoneclient python-glanceclient python-novaclient python-cinderclient python-neutronclient python-greenlet
+        sudo apt-get -y install python-suds python-keystoneclient python-glanceclient python-novaclient python-cinderclient python-neutronclient python-greenlet
     fi
 }
 
