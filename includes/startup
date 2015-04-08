@@ -1,0 +1,811 @@
+#!/bin/bash
+
+# OpenStack auto-configuration script for F5 BIG-IP
+# author: John Gruber <j.gruber@f5.com>
+# updated: 2015-03-05
+
+shopt -s extglob
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin/"
+
+# First boot inidicator file
+FIRST_BOOT_FILE="/config/firstboot"
+
+# Logging settings
+LOGGER_TAG="openstack-init"
+LOGGER_CMD="logger -t $LOGGER_TAG"
+
+# Wait for process settings
+STATUS_CHECK_RETRIES=20
+STATUS_CHECK_INTERVAL=10
+
+# OpenStack user-data settings
+OS_USER_DATA_LOCAL_FILE="/config/user_data.json"
+OS_USER_DATA_RETRIES=20
+OS_USER_DATA_RETRY_INTERVAL=10
+OS_USER_DATA_RETRY_MAX_TIME=300
+OS_USER_DATA_HOST="169.254.169.254"
+OS_USER_DATA_PATH="/latest/user-data"
+OS_USER_DATA_TMP_FILE="/tmp/openstack-user-data.json"
+OS_USER_DATA_CLEANUP=true
+
+# OpenStack SSH public key injection settings
+OS_SSH_KEY_INJECT_ENABLED=true
+OS_SSH_KEY_RETRIES=5
+OS_SSH_KEY_RETRY_INTERVAL=10
+OS_SSH_KEY_RETRY_MAX_TIME=300
+OS_SSH_KEY_PATH="/latest/meta-data/public-keys/0/openssh-key"
+OS_SSH_KEY_TMP_FILE="/tmp/openstack-ssh-key.pub"
+ROOT_AUTHORIZED_KEYS="/root/.ssh/authorized_keys"
+
+# BIG-IP password settings
+OS_CHANGE_PASSWORDS=true
+
+# BIG-IP licensing settings
+BIGIP_LICENSE_FILE="/config/bigip.license"
+BIGIP_LICENSE_RETRIES=5
+BIGIP_LICENSE_RETRY_INTERVAL=5
+
+# BIG-IP module provisioning
+BIGIP_PROVISIONING_ENABLED=true
+BIGIP_AUTO_PROVISIONING_ENABLED=true
+
+# TMM interfaces network settings
+OS_DHCP_ENABLED=true
+OS_DHCP_LEASE_FILE="/tmp/openstack-dhcp.leases"
+OS_DHCP_REQ_TIMEOUT=30
+OS_VLAN_PREFIX="openstack-network-"
+OS_VLAN_DESCRIPTION="auto-added by openstack-init"
+OS_SELFIP_PREFIX="openstack-dhcp-"
+OS_SELFIP_ALLOW_SERVICE="none"
+OS_SELFIP_DESCRIPTION="auto-added by openstack-init"
+OS_DEVICE_SYNC="false"
+OS_DEVICE_FAILOVER="false"
+OS_DEVICE_MIRROR_PRIMARY="false"
+OS_DEVICE_MIRROR_SECONDARY="false"
+
+# Regular expressions
+LEVEL_REGEX='^(dedicated|minimum|nominal|none)$'
+PW_REGEX='^\$[0-9][A-Za-z]?\$'
+TMM_IF_REGEX='^1\.[0-9]$'
+IP_REGEX='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
+SELFIP_ALLOW_SERVICE_REGEX='^(all|default|none)$'
+
+# Completion flag
+OS_MARKER_STARTUP_COMPLETE="/tmp/openstack_auto_config_completed"
+
+# insert tag and log
+function log() {
+  echo "$1" | eval "$LOGGER_CMD"
+}
+
+function upcase() {
+  echo "$1" | tr '[a-z]' '[A-Z]'
+}
+
+function get_json_value() {
+  echo -n $(perl -MJSON -ne "\$value = decode_json(\$_)->$1; \
+    \$value =~ s/([^a-zA-Z0-9])/\$1/g; print \$value" $2)
+}
+
+function get_user_data_value() {
+  echo -n $(get_json_value $1 $OS_USER_DATA_TMP_FILE)
+}
+
+function get_user_data_system_cmds() {
+  echo -n $(perl -MJSON -ne "print join(';;', \
+  @{decode_json(\$_)->{bigip}{system_cmds}})" $OS_USER_DATA_TMP_FILE)
+}
+
+function get_user_data_network_routes() {
+  echo -n $(perl -MJSON -ne "\$data = decode_json(\$_); \
+  foreach \$route (@{\$data->{'bigip'}->{'network'}->{'routes'}}) { \
+    print \$route->{'destination'}.\";\".\$route->{'gateway'}.\"|\"; \
+  }" $OS_USER_DATA_TMP_FILE)
+}
+
+function generate_sha512_passwd_hash() {
+  salt=$(openssl rand -base64 8)
+  echo -n $(perl -e "print crypt(q[$1], \"\\\$6\\\$$salt\\\$\")")
+}
+
+function get_dhcp_server_address() {
+  echo -n $(awk '/dhcp-server-identifier/ { print $3 }' \
+    /var/lib/dhclient/dhclient.leases | tail -1 | tr -d ';')
+}
+
+function test_metadata_service() {
+  curl -s http://$1 &> /dev/null
+}
+
+# check if MCP is running
+function wait_mcp_running() {
+  failed=0
+
+  while true; do
+    mcp_started=$(bigstart_wb mcpd start)
+
+    if [[ $mcp_started == released ]]; then
+      # this will log an error when mcpd is not up
+      tmsh -a show sys mcp-state field-fmt | grep -q running 
+
+      if [[ $? == 0 ]]; then
+        log "Successfully connected to mcpd..."
+        return 0
+      fi
+    fi
+
+    failed=$(($failed + 1))
+
+    if [[ $failed -ge $STATUS_CHECK_RETRIES ]]; then
+      log "Failed to connect to mcpd after $failed attempts, quitting..."
+      return 1
+    fi
+
+    log "Could not connect to mcpd (attempt $failed/$STATUS_CHECK_RETRIES), retrying in $STATUS_CHECK_INTERVAL seconds..."
+    sleep $STATUS_CHECK_INTERVAL
+  done
+}
+
+# wait for tmm to start
+function wait_tmm_started() {
+  failed=0
+
+  while true; do
+    tmm_started=$(bigstart_wb tmm start)
+
+    if [[ $tmm_started == released ]]; then
+      log "detected tmm started"
+      return 0
+    fi
+
+    failed=$(($failed + 1))
+
+    if [[ $failed -ge $STATUS_CHECK_RETRIES ]]; then
+      log "tmm was not started after $failed checks, quitting..."
+      return 1
+    fi
+
+    log "tmm not started (check $failed/$STATUS_CHECK_RETRIES), retrying in $STATUS_CHECK_INTERVAL seconds..."
+    sleep $STATUS_CHECK_INTERVAL
+  done
+}
+
+# retrieve and install SSH public key from OpenStack metadata
+function inject_openssh_key() {
+  ssh_key_inject=$OS_SSH_KEY_INJECT_ENABLED
+  [[ $ssh_key_inject == true &&
+    $(get_user_data_value {bigip}{ssh_key_inject}) == false ]] &&
+    ssh_key_inject=false
+
+  if [[ $ssh_key_inject == true ]]; then
+    rm -f $OS_SSH_KEY_TMP_FILE
+    
+    log "Retrieving SSH public key from $1..."
+    curl -s -f --retry $OS_SSH_KEY_RETRIES --retry-delay \
+      $OS_SSH_KEY_RETRY_INTERVAL --retry-max-time \
+      $OS_SSH_KEY_RETRY_MAX_TIME -o $OS_SSH_KEY_TMP_FILE $1
+
+    if [[ $? == 0 ]]; then
+      ssh_key=$(head -n1 $OS_SSH_KEY_TMP_FILE)
+      grep -q "$ssh_key" $ROOT_AUTHORIZED_KEYS
+
+      if [[ $? != 0 ]]; then 
+        echo $ssh_key >> $ROOT_AUTHORIZED_KEYS
+        restorecon $ROOT_AUTHORIZED_KEYS
+        rm -f $OS_SSH_KEY_TMP_FILE
+        log "Successfully installed SSH public key..."
+      else
+        log "SSH public key already installed, skipping..."
+      fi
+    else
+      log "Could not retrieve SSH public key after $OS_SSH_KEY_RETRIES attempts, quitting..."
+      return 1
+    fi
+  else
+    log "SSH public key injection disabled, skipping..."
+  fi
+}
+
+# retrieve user-data from instance metadata
+function get_user_data() {
+  rm -f $OS_USER_DATA_TMP_FILE	  
+  log "Retrieving user-data from $1..."
+  # Use max-time 10 because it should respond within a second or two
+  # and we don't want to waste all of our retry time waiting.
+  curl -s -f --retry $OS_USER_DATA_RETRIES --retry-delay \
+	$OS_USER_DATA_RETRY_INTERVAL --retry-max-time $OS_USER_DATA_RETRY_MAX_TIME \
+	-m 10 \
+	-o $OS_USER_DATA_TMP_FILE $1
+
+  if [[ $? == 0 ]]; then
+	# remove newlines and repeated whitespace from JSON to appease Perl JSON \
+	# module
+	user_data=$(cat $OS_USER_DATA_TMP_FILE)
+	echo "$user_data" | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+	  > $OS_USER_DATA_TMP_FILE
+	chmod 0600 $OS_USER_DATA_TMP_FILE
+	log "Successfully retrieved user-data from instance metadata..."
+  else
+	log "Could not retrieve user-data after $OS_USER_DATA_RETRIES attempts, trying local policy..."
+	if [[ -f $OS_USER_DATA_LOCAL_FILE ]]; then
+      log "Found locally installed $OS_USER_DATA_LOCAL_FILE. Using local file for user data."
+      # remove newlines and repeated whitespace from JSON to appease Perl JSON \
+      # module
+      cat OS_USER_DATA_LOCAL_FILE | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+      > $OS_USER_DATA_TMP_FILE
+      chmod 0600 $OS_USER_DATA_TMP_FILE
+    else
+	  return 1
+	fi
+  fi
+  
+}
+
+# license and provision device if license file doesn't exist
+function license_and_provision_modules() {
+  if [[ $? == 0 && ! -s $BIGIP_LICENSE_FILE ]]; then
+    license_bigip
+    provision_modules
+  else
+    log "Skip licensing and provisioning.  "$BIGIP_LICENSE_FILE" already exists."
+  fi
+}
+
+# extract license from JSON data and license unit
+function license_bigip() {
+  host=$(get_user_data_value {bigip}{license}{host})
+  basekey=$(get_user_data_value {bigip}{license}{basekey})
+  addkey=$(get_user_data_value {bigip}{license}{addkey})
+  if [[ -f /etc/init.d/mysql ]]; then
+      sed -ised -e 's/sleep\ 5/sleep\ 10/' /etc/init.d/mysql
+      rm -f /etc/init.d/mysqlsed
+  fi
+  if [[ ! -s $BIGIP_LICENSE_FILE ]]; then
+    if [[ -n $basekey ]]; then
+      failed=0
+
+      # if a host or add-on key is provided, append to license client command
+      [[ -n $host ]] && host_cmd="--host $host"
+      [[ -n $addkey ]] && addkey_cmd="--addkey $addkey"
+
+      while true; do
+        log "Licensing BIG-IP using license key $basekey..."
+        SOAPLicenseClient $host_cmd --basekey $basekey $addkey_cmd 2>&1 | eval $LOGGER_CMD
+
+        if [[ $? == 0 && -f $BIGIP_LICENSE_FILE ]]; then
+          log "Successfully licensed BIG-IP using user-data from instance metadata..."
+          return 0
+        else
+          failed=$(($failed + 1))
+
+          if [[ $failed -ge $BIGIP_LICENSE_RETRIES ]]; then
+            log "Failed to license BIG-IP after $failed attempts, quitting..."
+            return 1
+          fi
+
+          log "Could not license BIG-IP (attempt #$failed/$BIGIP_LICENSE_RETRIES), retrying in $BIGIP_LICENSE_RETRY_INTERVAL seconds..."
+          sleep $BIGIP_LICENSE_RETRY_INTERVAL
+        fi
+      done
+    else
+      log "No BIG-IP license key found, skipping license activation..."
+    fi
+  else
+    log "BIG-IP already licensed, skipping license activation..."
+  fi
+}
+
+# return list of modules supported by current platform
+function get_supported_modules() {
+  echo -n $(tmsh list sys provision one-line | awk '/^sys/ { print $3 }')
+}
+
+# retrieve enabled modules from BIG-IP license file
+function get_licensed_modules() {
+  if [[ -s $BIGIP_LICENSE_FILE ]]; then
+    provisionable_modules=$(get_supported_modules)
+    enabled_modules=$(awk '/^mod.*enabled/ { print $1 }' /config/bigip.license |
+      sed 's/mod_//' | tr '\n' ' ')
+
+    for module in $enabled_modules; do
+      case $module in
+        wo@(c|m)) module="wom" ;;
+        wa?(m)) module="wam" ;;
+        af@(m|w)) module="afm" ;;
+        am) module="apm" ;;
+      esac
+      
+      if [[ "$provisionable_modules" == *"$module"* ]]; then
+        licensed_modules="$licensed_modules $module"
+        log "Found license for $(upcase $module) module..."
+      fi
+    done
+    
+    echo "$licensed_modules"
+  else 
+    log "Could not locate valid BIG-IP license file, no licensed modules found..."
+  fi
+}
+
+# provision BIG-IP software modules 
+function provision_modules() {
+  # get list of licensed modules
+  licensed_modules=$(get_licensed_modules)
+  provisionable_modules=$(get_supported_modules)
+  
+  # if auto-provisioning enabled, obtained enabled modules list from license \
+  # file
+  auto_provision=$(get_user_data_value {bigip}{modules}{auto_provision})
+  log "auto_provision userdata set to $auto_provision"
+  [[ $BIGIP_AUTO_PROVISIONING_ENABLED == false ]] && auto_provision=false 
+  log "auto_provision after check, set to $auto_provision"
+    
+  for module in $licensed_modules; do 
+    level=$(get_user_data_value {bigip}{modules}{$module})
+        
+    if [[ "$provisionable_modules" == *"$module"* ]]; then
+      if [[ ! $level =~ $LEVEL_REGEX ]]; then 
+        if [[ $auto_provision == true ]]; then
+          level=nominal
+        else
+          level=none
+        fi
+      fi
+      
+      tmsh modify sys provision $module level $level &> /dev/null
+      
+      if [[ $? == 0 ]]; then
+        log "Successfully provisioned $(upcase "$module") with level $level..."
+      else
+        log "Failed to provision $(upcase "$module"), examine /var/log/ltm for more information..."
+      fi
+    fi
+  done
+ }
+
+function change_passwords() {
+  root_password=$(get_user_data_value {bigip}{root_password})
+  admin_password=$(get_user_data_value {bigip}{admin_password})
+  
+  change_passwords=$OS_CHANGE_PASSWORDS
+  [[ $change_passwords == true && \
+    $(get_user_data_value {bigip}{change_passwords}) == false ]] && \
+    change_passwords=false
+
+  if [[ $change_passwords == true ]]; then
+    for creds in root:$root_password admin:$admin_password; do
+      user=$(cut -d ':' -f1 <<< $creds)
+      password=$(cut -d ':' -f2 <<< $creds)
+
+      if [[ -n $password ]]; then
+        if [[ $password =~ $PW_REGEX ]]; then
+          password_hash=$password
+          log "Found hash for salted password, successfully changed $user password..."
+        else
+          password_hash=$(generate_sha512_passwd_hash "$password")
+          log "Found plain text password and (against my better judgment) successfully changed $user password..."
+        fi
+
+        sed -e "/auth user $user/,/}/ s|\(encrypted-password \).*\$|\1\"$password_hash\"|" \
+	        -i /config/bigip_user.conf
+      else
+        log "No $user password found in user-data, skipping..."
+      fi
+    done
+
+    tmsh load sys config user-only 2>&1 | eval $LOGGER_CMD
+  else
+    log "Password changed have been disabled, skipping..."
+  fi
+
+}
+
+function set_tmm_if_selfip() {
+  tmm_if=$1
+  address=$2
+  netmask=$3
+  mtu=$4
+  
+  unset dhcp_enabled selfip_prefix selfip_name selfip_description selfip_allow_service vlan_prefix vlan_name
+  
+  if [[ $address =~ $IP_REGEX && $netmask =~ $IP_REGEX ]]; then
+    dhcp_enabled=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{dhcp})
+    vlan_prefix=$(get_user_data_value {bigip}{network}{vlan_prefix})
+    vlan_name=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{vlan_name})
+    selfip_prefix=$(get_user_data_value {bigip}{network}{selfip_prefix})
+    selfip_name=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{selfip_name})
+    selfip_description=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{selfip_description})
+    selfip_allow_service=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{selfip_allow_service})
+    device_is_sync=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_sync})
+    device_is_failover=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_failover})
+    device_is_mirror_primary=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_mirror_primary})
+    device_is_mirror_secondary=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{is_mirror_secondary})
+    
+    [[ -z $vlan_prefix ]] && vlan_prefix=$OS_VLAN_PREFIX
+    [[ -z $vlan_name ]] && vlan_name="${vlan_prefix}${tmm_if}"
+    
+    [[ -z $selfip_prefix ]] && selfip_prefix=$OS_SELFIP_PREFIX
+    [[ -z $selfip_name ]] && selfip_name="${selfip_prefix}${tmm_if}"
+    [[ -z $selfip_description ]] && selfip_description=$OS_SELFIP_DESCRIPTION
+    [[ -z $selfip_allow_service ]] && selfip_allow_service=$OS_SELFIP_ALLOW_SERVICE
+    [[ -z $device_is_sync ]] && device_is_sync=$OS_DEVICE_SYNC  
+    [[ -z $device_is_failover ]] && device_is_failover=$OS_DEVICE_FAILOVER
+    [[ -z $device_is_mirror_primary ]] && device_is_mirror_primary=$OS_DEVICE_MIRROR_PRIMARY
+    [[ -z $device_is_mirror_secondary ]] && device_is_mirror_secondary=$OS_DEVICE_MIRROR_SECONDARY    
+    
+    if [[ $dhcp_enabled == false ]]; then
+      log "Configuring self IP $selfip_name on VLAN $vlan_name with static address $address/$netmask..."
+    else
+      log "Configuring self IP $selfip_name on VLAN $vlan_name with DHCP address $address/$netmask..."
+    fi
+
+    if [ -n "$mtu" ]; then
+        vlan_mtu_cmd="tmsh modify net vlan $vlan_name { mtu $mtu }"
+        log "  $vlan_mtu_cmd"
+        eval "$vlan_mtu_cmd 2>&1 | $LOGGER_CMD"
+    fi
+
+    selfip_cmd="tmsh create net self $selfip_name address $address/$netmask allow-service $selfip_allow_service vlan $vlan_name description \"$selfip_description\""
+    log "  $selfip_cmd"
+    eval "$selfip_cmd 2>&1 | $LOGGER_CMD"
+    
+    if [[ $device_is_sync == true ]]; then
+      log "Configuring self IP $selfip_name as the device config sync interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      tmsh modify /cm device $local_device_name { configsync-ip $address }
+    fi
+    
+    if [[ $device_is_failover == true ]]; then
+      log "Configuring self IP $selfip_name as a device unicast failover interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      if [[ -z $unicast_failover_addresses ]]; then
+          unicast_failover_address=($address)
+          tmsh modify /cm device $local_device_name unicast-address { { effective-ip $address effective-port 1026 ip $address } }
+      else
+          unicast_failover_addresses+=($address)
+          ua_list="{"
+          for i in ${unicast_failover_addresses[@]}; do ua_list="$ua_list { effective-ip ${i} effective-port 1026 ip ${i} }"; done
+          ua_list="${ua_list} }"
+          tmsh modify /cm device $local_device_name unicast-address $ua_list               
+      fi
+    fi
+    
+    if [[ $device_is_mirror_primary == true ]]; then
+      log "Configuring self IP $selfip_name as the device primary mirroring interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      tmsh modify /cm device $local_device_name mirror-ip $address
+    fi
+
+    if [[ $device_is_mirror_secondary == true ]]; then
+      log "Configuring self IP $selfip_name as the device secondary mirroring interface"
+      if [[ -z $local_device_name ]]; then
+        local_device_name=`tmsh show /cm device all field-fmt|grep "cm device"|awk 'NR<2{print $3}'`
+      fi
+      tmsh modify /cm device $local_device_name mirror-secondary-ip $address
+    fi    
+    
+  fi
+}
+
+function set_tmm_if_vlan() {
+  tmm_if=$1
+
+  unset vlan_prefix vlan_name vlan_description vlan_tag tagged vlan_tag_cmd tagged_cmd
+
+  if [[ $tmm_if =~ $TMM_IF_REGEX ]]; then
+    vlan_prefix=$(get_user_data_value {bigip}{network}{vlan_prefix})
+    vlan_name=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{vlan_name})
+    vlan_description=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{vlan_description})
+    vlan_tag=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{vlan_tag})
+    tagged=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{tagged})
+
+
+    [[ -z $vlan_prefix ]] && vlan_prefix=$OS_VLAN_PREFIX
+    [[ -z $vlan_name ]] && vlan_name="${vlan_prefix}${tmm_if}"
+    [[ -z $vlan_description ]] && vlan_description=$OS_VLAN_DESCRIPTION
+
+    if [[ $tagged == true && tagged_cmd="{ tagged } " ]]; then
+      if [[ $vlan_tag -ge 1 && $vlan_tag -le 4096 ]]; then
+        vlan_tag_cmd=" tag $vlan_tag "
+        log "Configuring VLAN $vlan_name with tag $vlan_tag on interface $tmm_if..."
+      fi
+    else
+      log "Configuring VLAN $vlan_name on interface $tmm_if..."
+    fi
+
+    vlan_cmd="tmsh create net vlan $vlan_name interfaces add { $tmm_if $tagged_cmd}$vlan_tag_cmd description \"$vlan_description\""
+
+    log "  $vlan_cmd"
+    eval "$vlan_cmd 2>&1 | $LOGGER_CMD"
+  fi
+}
+
+function dhcp_tmm_if() {
+  [[ -f $OS_DHCP_LEASE_FILE ]] && rm -f $OS_DHCP_LEASE_FILE
+
+  log "Issuing DHCP request on interface 1.${1:3}..."
+  dhclient_cmd="dhclient -lf $OS_DHCP_LEASE_FILE -cf /dev/null -1 -T \
+    $OS_DHCP_REQ_TIMEOUT -sf /bin/echo -R \
+    subnet-mask,broadcast-address,routers $1"
+  eval "$dhclient_cmd 2>&1 | sed -e '/^$/d' -e 's/^/  /' | $LOGGER_CMD"
+  pkill dhclient
+
+  if [[ -f $OS_DHCP_LEASE_FILE ]]; then 
+    dhcp_offer=`awk 'BEGIN {
+      FS="\n"
+      RS="}"
+    }
+    /lease/ {
+      interface_mtu=""
+      for (i=1;i<=NF;i++) {
+        if ($i ~ /interface-mtu/) {
+          sub(/;/,"",$i)
+          split($i,INTMTU," ")
+          interface_mtu=INTMTU[3]
+        }
+        else if ($i ~ /interface/) {
+          gsub(/[";]/,"",$i)
+          sub(/eth/, "1.", $i)
+          split($i,INT," ")
+          interface=INT[2]
+        }
+        else if ($i ~ /fixed/) {
+          sub(/;/,"",$i)
+          split($i,ADDRESS," ")
+          address=ADDRESS[2]
+        }
+        else if ($i ~ /mask/) {
+          sub(/;/,"",$i)
+          split($i,NETMASK, " ")
+          netmask=NETMASK[3]
+        }
+      }
+
+      print interface " " address " " netmask " " interface_mtu
+    }' $OS_DHCP_LEASE_FILE`
+    
+    rm -f $OS_DHCP_LEASE_FILE
+    
+    echo $dhcp_offer
+  fi
+}
+
+function configure_tmm_ifs() {
+  tmm_ifs=$(ip link sh | egrep '^[0-9]+: eth[1-9]' | cut -d ' ' -f2 | 
+    tr -d  ':')
+    
+  dhcp_enabled_global=$OS_DHCP_ENABLED
+  [[ $dhcp_enabled_global == true && \
+    $(get_user_data_value {bigip}{network}{dhcp}) == false ]] && \
+    dhcp_enabled_global=false
+
+  # stop DHCP for management interface because only one dhclient process can run at a time
+  log "Stopping DHCP client for management interface..."
+  service dhclient stop  &> /dev/null
+  sleep 1
+
+  [[ $dhcp_enabled_global == false ]] &&
+    log "DHCP disabled globally, will not auto-configure any interfaces..."
+
+  for interface in $tmm_ifs; do
+    tmm_if="1.${interface:3}"
+    dhcp_enabled=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{dhcp})
+
+    # setup VLAN
+    tmsh list net vlan one-line | grep -q "interfaces { .*$1\.${interface:3}.* }"
+
+    if [[ $? != 0 ]]; then
+      set_tmm_if_vlan $tmm_if
+    else  
+      log "VLAN already configured on interface $tmm_if, skipping..."
+    fi
+      
+    # setup self-IP
+    vlan_name=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{vlan_name})
+    [[ -z $vlan_name ]] && vlan_name="${vlan_prefix}${tmm_if}"
+    tmsh list net self one-line | grep -q "vlan $vlan_name"
+    
+    if [[ $? != 0 ]]; then
+      if [[ $dhcp_enabled_global == false || $dhcp_enabled == false ]]; then
+        # DHCP is disabled, look for static address and configure it
+        address=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{address})
+        netmask=$(get_user_data_value {bigip}{network}{interfaces}{$tmm_if}{netmask})
+
+        if [[ -n $address && -n $netmask ]]; then
+          set_tmm_if_selfip $tmm_if $address $netmask
+        else
+          log "DHCP is disabled and no static address could be located for $tmm_if, skipping..."
+        fi
+      else
+        set_tmm_if_selfip $(dhcp_tmm_if $interface)
+        sleep 2
+      fi
+    else
+      log "Self IP already configured for interface $tmm_if, skipping..."
+    fi
+  done
+
+  # restart DHCP for management interface
+  #log "Restarting DHCP client for management interface..."
+  #service dhclient restart &> /dev/null
+  tmsh modify sys db dhclient.mgmt { value disable }
+  log "Saving after configuring interfaces"
+  tmsh save sys config | eval $LOGGER_CMD
+}
+
+function configure_global_routes() {
+  routes=$(get_user_data_network_routes)
+  for route in $(echo $routes | tr "|" "\n"); do
+     re=($(echo $route | tr ";" "\n"));
+     log "Adding global route destination ${re[0]} gateway ${re[1]}..."
+     tmsh create /net route ${re[0]} gw ${re[1]}
+  done
+}
+
+function execute_system_cmd() {
+  system_cmds=$(get_user_data_system_cmds)
+  
+  IFS=';;'
+  for system_cmd in $system_cmds; do
+    if [[ -n $system_cmd ]]; then
+      log "Executing system command: $system_cmd..."
+      eval "$system_cmd 2>&1 | sed -e  '/^$/d' -e 's/^/  /' | $LOGGER_CMD"
+    fi
+  done
+  unset IFS
+}
+
+# cleanup user-data, disable for debug purposes
+function cleanup_user_data() {
+  [[ $OS_USER_DATA_CLEANUP == true ]] && rm -f $OS_USER_DATA_TMP_FILE
+}
+
+function force_platform_id() {
+  log "Forcing /PLATFORM..."
+  printf 'platform=Z100\nfamily=0xC000000\nhost=Z100\nsystype=0x71\n' > /PLATFORM
+}
+
+function randomize_base_passwords() {
+  admin_password=`< /dev/urandom tr -dc A-Z | head -c10`
+  root_password=`< /dev/urandom tr -dc A-Z | head -c10`
+
+  /usr/bin/passwd admin $admin_password
+  /usr/bin/passwd root $root_password
+
+  echo "" >> /dev/kmsg
+  echo "" >> /dev/kmsg
+  echo "########################################################" >> /dev/kmsg
+  echo "#                                                      #" >> /dev/kmsg
+  echo "# random root password:           $root_password           #" >> /dev/kmsg
+  echo "# random admin password:          $admin_password           #" >> /dev/kmsg
+  echo "#                                                      #" >> /dev/kmsg
+  echo "########################################################" >> /dev/kmsg
+  echo "" >> /dev/kmsg
+  echo "" >> /dev/kmsg
+  echo "    r: $root_password   a: $admin_password" >> /etc/issue
+  echo "" >> /etc/issue	
+}
+
+function restore_issue() {
+  cat /etc/issue | head -n 2 > /etc/issue	
+}
+
+function main() {
+  start=$(date +%s)
+  log "Starting OpenStack auto-configuration..."
+  
+  #
+  # This is a conditional check, but 
+  # we already know this is a VE and
+  # we know unless they have adjusted 
+  # there Nova settings just for us,
+  # the DMI variables will be wrong
+  # when quaried by halid. 
+  #
+  # Skip this:
+  #
+  #if [ -f /PLATFORM ]; then
+  #  . /PLATFORM
+  #  if [ ${platform} == "Unknown" ]; then
+  #       force_platform_id
+  #  fi
+  #else
+  #  force_platform_id
+  #fi
+  #
+
+  # Why not just decide to work?  
+  # We are always a VE
+  force_platform_id
+
+  # First boot flag file and policy
+  if [ -f $FIRST_BOOT_FILE ]; then
+    randomize_base_passwords
+    rm $FIRST_BOOT_FILE
+  else
+    # Non first boot policy
+    restore_issue
+  fi
+
+  if [[ $(qp) == Z100 ]]; then
+    # ensure that mcpd is started and alive before doing anything
+    wait_mcp_running
+
+    if [[ $? == 0 ]]; then
+      sleep 20
+      tmsh save sys config | eval $LOGGER_CMD
+    
+      # test to see if metadata service is accessible, if not set host to DHCP
+      # server address and try again
+      test_metadata_service $OS_USER_DATA_HOST
+
+      if [[ $? != 0 ]]; then
+        dhcp_server_address=$(get_dhcp_server_address)
+        log "Metadata server at $OS_USER_DATA_HOST is not available, trying $dhcp_server_address instead..."
+        OS_USER_DATA_HOST=$dhcp_server_address
+        test_metadata_service $OS_USER_DATA_HOST
+
+        if [[ $? != 0 ]]; then
+          log "Could not locate a viable metadata server, quitting..."
+          exit 1
+        fi
+      fi
+      
+      get_user_data "http://${OS_USER_DATA_HOST}${OS_USER_DATA_PATH}"
+
+      if [[ $? == 0 ]]; then
+        # found user data. do the full workflow
+        # set root SSH key
+        inject_openssh_key "http://${OS_USER_DATA_HOST}${OS_SSH_KEY_PATH}"
+        # change admin and root password
+        change_passwords
+        # configure base L2 and L3 networking
+        configure_tmm_ifs
+        # setup license and provisioned modules
+        wait_tmm_started
+        license_and_provision_modules
+        # setup global routes
+        configure_global_routes
+        # execute command list
+        execute_system_cmd
+      else
+        # no user data was supplied. Push a default policy file.
+        echo '{ "bigip": { "ssh_key_inject": "true", "network": { "dhcp": "true" } } }' > $OS_USER_DATA_TMP_FILE
+        chmod 0600 $OS_USER_DATA_TMP_FILE
+        # set root SSH key
+        inject_openssh_key "http://${OS_USER_DATA_HOST}${OS_SSH_KEY_PATH}"
+        # configure base L2 and L3 networking
+        configure_tmm_ifs
+      fi
+
+      # remove user data temp files
+      cleanup_user_data
+
+      wait_mcp_running
+      tmsh modify sys db provision.extramb { value 500 }
+      # wait for stuff to restart
+      sleep 10
+      wait_mcp_running
+      wait_tmm_started
+      sleep 10
+      tmsh modify sys global-settings gui-setup disabled | eval $LOGGER_CMD
+      tmsh save sys config | eval $LOGGER_CMD
+      echo `date +%s` > $OS_MARKER_STARTUP_COMPLETE
+      chcon --type=tmp_t $OS_MARKER_STARTUP_COMPLETE 
+    fi
+  else
+    log "Cannot run OpenStack auto-configuration on non-VE platforms, quitting..."
+  fi
+
+  finish=$(date +%s)
+  log "Completed OpenStack auto-configuration in $(($finish-$start)) seconds..."
+}
+
+# immediately background script to prevent blocking of MCP from starting
+main &
