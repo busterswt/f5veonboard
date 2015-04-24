@@ -671,6 +671,11 @@ function force_platform_id() {
   printf 'platform=Z100\nfamily=0xC000000\nhost=Z100\nsystype=0x71\n' > /PLATFORM
 }
 
+function force_mgmt_mtu() {
+  log "Forcing Management interface MTU..."
+  ip link set eth0 mtu 1400
+}
+
 function randomize_base_passwords() {
   admin_password=`< /dev/urandom tr -dc A-Z | head -c10`
   root_password=`< /dev/urandom tr -dc A-Z | head -c10`
@@ -723,6 +728,14 @@ function main() {
   # Why not just decide to work?  
   # We are always a VE
   force_platform_id
+  
+  # The management interface does not 
+  # request MTU and does not handle 
+  # it. If the management interface
+  # is on a tunnel and the meta-data
+  # or user-data is larger then 1500
+  # bytes, it will fail. This fixes it.
+  force_mgmt_mtu
 
   # First boot flag file and policy
   if [ -f $FIRST_BOOT_FILE ]; then
