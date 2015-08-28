@@ -276,7 +276,7 @@
                 "https://www.dropbox.com/s/8cg5xldjl9f6yz5/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip?dl=0"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
-            "disk_image_file": "BIGIP-12.0.0.0.0.606.ALL.qcow2",
+            "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
             "base_iso_file": "none",
             "hf_iso_file": "none",
             "os_type": "bigip_ltm",
@@ -315,7 +315,7 @@
                 "https://www.dropbox.com/s/8cg5xldjl9f6yz5/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip?dl=0"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
-            "disk_image_file": "BIGIP-12.0.0.0.0.606.ALL.qcow2",
+            "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
             "base_iso_file": "none",
             "hf_iso_file": "none",
             "os_type": "bigip_ltm",
@@ -353,7 +353,7 @@
                 "https://www.dropbox.com/s/8cg5xldjl9f6yz5/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip?dl=0"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
-            "disk_image_file": "BIGIP-12.0.0.0.0.606.ALL.qcow2",
+            "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
             "base_iso_file": "none",
             "hf_iso_file": "none",
             "os_type": "bigip_ltm",
