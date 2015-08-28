@@ -269,6 +269,109 @@
             "vcpus": 2,
             "flavor": "BIGIP-11.6.0.LTM.Tiny",
             "volumes": []
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 12.0.0 Large",
+            "urls": [
+                "https://www.dropbox.com/s/8cg5xldjl9f6yz5/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip?dl=0"
+            ],
+            "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
+            "disk_image_file": "BIGIP-12.0.0.0.0.606.ALL.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm",
+            "os_version": "12.0.0.0.0.606",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "f5_networks",
+            "image_name": "BIGIP-12.0.0.LTM.Large",
+            "image_description": "F5 Networks TMOS Version 12.0.0 Local Traffic Manager. 140G disk, 16G RAM, 8vCPUs. Acceleration features require adding the DATASTOR volume.",
+            "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
+            "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 140,
+            "min-ram": 16384,
+            "vcpus": 8,
+            "flavor": "BIGIP-12.0.0.LTM.Large",
+            "volumes": [
+                {
+                    "BIGIP-12.0.0.0.0.606.DATASTOR.ALL": {
+                        "volume_file": "BIGIP-12.0.0.0.0.606.DATASTOR.ALL.qcow2",
+                        "container_format": "bare",
+                        "disk_format": "qcow2",
+                        "min-disk": 40,
+                        "extra-specs": {
+                            "vendor": "f5",
+                            "type": "datastor"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "BIGIP Virtual Edition LTM 12.0.0 Medium",
+            "urls": [
+                "https://www.dropbox.com/s/8cg5xldjl9f6yz5/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip?dl=0"
+            ],
+            "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
+            "disk_image_file": "BIGIP-12.0.0.0.0.606.ALL.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm",
+            "os_version": "12.0.0.0.0.606",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "f5_networks",
+            "image_name": "BIGIP-12.0.0.LTM.Medium",
+            "image_description": "F5 Networks TMOS Version 12.0.0 Local Traffic Manager. 140G disk, 8G RAM, 4vCPUs. Acceleration features require adding the DATASTOR volume.",
+            "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
+            "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 140,
+            "min-ram": 8192,
+            "vcpus": 4,
+            "flavor": "BIGIP-12.0.0.LTM.Medium",
+            "volumes": [
+                {
+                    "BIGIP-12.0.0.0.0.606.DATASTOR.ALL": {
+                        "volume_file": "BIGIP-12.0.0.0.0.606.DATASTOR.ALL.qcow2",
+                        "container_format": "bare",
+                        "disk_format": "qcow2",
+                        "min-disk": 40,
+                        "extra-specs": {
+                            "vendor": "f5",
+                            "type": "datastor"
+                        }
+                    }
+                }
+            ]        },
+        {
+            "name": "BIGIP Virtual Edition LTM 12.0.0 Small",
+            "urls": [
+                "https://www.dropbox.com/s/8cg5xldjl9f6yz5/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip?dl=0"
+            ],
+            "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
+            "disk_image_file": "BIGIP-12.0.0.0.0.606.ALL.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm",
+            "os_version": "12.0.0.0.0.606",
+            "os_name": "F5 Traffic Manaement Operating System ",
+            "os_vendor": "f5_networks",
+            "image_name": "BIGIP-12.0.0.LTM.Small",
+            "image_description": "F5 Networks TMOS Version 12.0.0 Local Traffic Manager. 40G disk, 4G RAM, 2vCPUs.",
+            "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
+            "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 32,
+            "min-ram": 4096,
+            "vcpus": 2,
+            "flavor": "BIGIP-12.0.0.LTM.Small",
+            "volumes": []
         }
     ]
 }
