@@ -144,7 +144,7 @@
             "os_name": "F5 Traffic Manaement Operating System ",
             "os_vendor": "f5_networks",
             "image_name": "BIGIP-12.0.0.LTM.Tiny",
-            "image_description": "F5 Networks TMOS Version 12.0.0 Local Traffic Manager. 8G disk, 2G RAM, 1vCPU",
+            "image_description": "F5 Networks TMOS Version 12.0.0 Local Traffic Manager. 8G disk, 4G RAM, 2vCPU",
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
@@ -154,6 +154,32 @@
             "min-ram": 4096,
             "vcpus": 2,
             "flavor": "BIGIP-12.0.0.LTM.Tiny",
+            "volumes": []
+        },
+        {
+            "name": "BIGIQ Virtual Edition 4.5",
+            "urls": [
+                "http://10.1.0.11/BIG-IQ-4.5.0.0.0.7028.qcow2.zip"
+            ],
+            "container_file_name": "BIG-IQ-4.5.0.0.0.7028.qcow2.zip",
+            "disk_image_file": "BIG-IQ-4.5.0.0.0.7028.qcow2",
+            "base_iso_file": "none",
+            "hf_iso_file": "none",
+            "os_type": "bigip_ltm_slot",
+            "os_version": "4.5.0.0.0.7028",
+            "os_name": "F5 BIGIQ Management System ",
+            "os_vendor": "f5_networks",
+            "image_name": "BIGIQ-4.5.0.0",
+            "image_description": "F5 Networks BIGIQ. 55G disk, 4G RAM, 2vCPU",
+            "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
+            "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
+            "firstboot_flag_file": "true",
+            "container_format": "bare",
+            "disk_format": "qcow2",
+            "min-disk": 55,
+            "min-ram": 4096,
+            "vcpus": 2,
+            "flavor": "BIGIQ-4.5.0.0",
             "volumes": []
         }
     ]

@@ -1,6 +1,6 @@
 heat_template_version: 2013-05-23
 
-description: This template deploys a Ubuntu 14.04 image as a onboarding server.
+description: This template deploys a Linux image as a TMOS VE image onboarding server.
 
 parameters:
   flavor:
@@ -8,23 +8,34 @@ parameters:
     label: F5 Onboard Server Flavor
     description: Type of instance (flavor) to be used on the compute instance.
     default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor 
   key:
     type: string
     label: F5 Onboard Server SSH Key Name
     description: Name of key-pair to be installed on the compute instance.
     default: my_key
+    constraints:
+      - custom_constraint: nova.keypair 
   private_network:
     type: string
     label: F5 Onboard Server Management Network
     description: Private network to attach server to.
     default: private-net
+    constraints:
+      - custom_constraint: neutron.network    
+  onboard_user:
+    type: string
+    label: F5 Onboard Server User
+    description: The onboard sudo user for interactive use.
+    default: onboard
   onboard_password:
     type: string
     label: F5 Onboard Server User Password
     description: The onboard sudo user for interactive use.
     default: openstack
     hidden: true
-  odk_package_url:
+  f5_odk_package_url:
     type: string
     label: F5 OpenStack Deployment Kit URL
     description: The URL to download the ODK debian package
@@ -60,6 +71,22 @@ parameters:
     description: Password used to perform image import services
     default: admin
     hidden: true
+parameter_groups:
+- parameters:
+  - flavor
+  - key
+  - private_network
+  - onboard_user
+  - onboard_password
+- parameters:
+  - f5_image_import_auth_url
+  - f5_image_import_tenant
+  - f5_image_import_user
+  - f5_image_import_password
+- parameters:
+  - f5_odk_package_url
+  - f5_onboard_package_url
+  - f5_image_import_bookmark_file_url
 
 resources:
   wait_condition:
@@ -117,8 +144,9 @@ resources:
       user_data:
         str_replace:
           params:
+            __onboard_user__: { get_param: onboard_user }
             __onboard_password__: { get_param: onboard_password }
-            __odk_package_url__: { get_param: odk_package_url }
+            __f5_odk_package_url__: { get_param: f5_odk_package_url }
             __f5_onboard_package_url__: { get_param: f5_onboard_package_url }
             __f5_image_import_bookmark_file_url__: { get_param: f5_image_import_bookmark_file_url }
             __f5_image_import_auth_url__: { get_param: f5_image_import_auth_url }
@@ -130,8 +158,8 @@ resources:
             #!/bin/bash -ex
 
             # create a onboard user
-            adduser onboard --disabled-login --gecos 'Onboard' --quiet --ingroup sudo
-            echo "onboard:__onboard_password__"|chpasswd
+            adduser __onboard_user__ --disabled-login --gecos 'Onboard' --quiet --ingroup sudo
+            echo "__onboard_user__:__onboard_password__"|chpasswd
             sed -i 's|[#]*PasswordAuthentication no|PasswordAuthentication yes|g' /etc/ssh/sshd_config
             sed -i 's|UsePAM no|UsePAM yes|g' /etc/ssh/sshd_config
             service ssh restart
@@ -139,7 +167,7 @@ resources:
             # download f5 packages
             cd /home/onboard
             
-            wget -q -c -nc -O /home/onboard/odk.deb __odk_package_url__
+            wget -q -c -nc -O /home/onboard/odk.deb __f5_odk_package_url__
             wget -q -c -nc -O /home/onboard/f5_onboard.deb __f5_onboard_package_url__
 
             # install packages
