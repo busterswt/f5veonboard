@@ -172,7 +172,7 @@ resources:
 
             # install packages
             apt-get update
-            apt-get -y install unzip python-keystoneclient python-glanceclient python-novaclient python-neutronclient python-cinderclient python-eventlet python-suds python-paramiko
+            apt-get -y install unzip qemu-utils lvm2 python-keystoneclient python-glanceclient python-novaclient python-neutronclient python-cinderclient python-eventlet python-suds python-paramiko
             dpkg -i /home/onboard/odk.deb
             dpkg -i /home/onboard/f5_onboard.deb
             
