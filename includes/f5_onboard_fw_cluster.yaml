@@ -306,8 +306,24 @@ resources:
             
             heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env -c 15 f5-ha-fw__f5_fw_os_stack_postfix__
             
-            sleep 10 
-            
+            MAX_ATTEMPTS=50
+            NOT_COMPLETE=0
+            SLEEP_INTERVAL=5
+            while true; do
+                STACK_COMPLETE=`heat stack-show f5-ha-fw__f5_fw_os_stack_postfix__|grep stack_status|grep COMPLETE|wc -l`
+                if [[ $STACK_COMPLETE == 1 ]]; then
+                    echo 'FW HA instances are complete. Clustering instances..'
+                    break
+                fi
+                sleep $SLEEP_INTERVAL
+                NOT_COMPLETE=$(($NOT_COMPLETE + 1))
+                if [[ $NOT_COMPLETE -ge $MAX_ATTEMPTS ]]; then
+                    echo 'FW HA stack failed to reach COMPLETE before timing out'
+                    wc_notify --data-binary '{"status": "FAILURE"}'
+                    exit(1)              
+                fi
+            done
+
             FW1_MGMT_IP=`heat output-show f5-ha-fw__f5_fw_os_stack_postfix__ fw1_mgmt_ip`
             FW1_MGMT_IP=`echo $FW1_MGMT_IP | tr -d '"'`
             FW1_HA_IP=`heat output-show f5-ha-fw__f5_fw_os_stack_postfix__ fw1_ha_ip`
