@@ -14,14 +14,14 @@ parameters:
     type: string
     label: F5 Onboard Server SSH Key Name
     description: Name of key-pair to be installed on the compute instance.
-    default: my_key
+    default: stack_key
     constraints:
       - custom_constraint: nova.keypair 
   private_network:
     type: string
     label: F5 Onboard Server Management Network
     description: Private network to attach server to.
-    default: private-net
+    default: VLAN-64
     constraints:
       - custom_constraint: neutron.network
   onboard_user:
