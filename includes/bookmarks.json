@@ -18,6 +18,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 120,
@@ -62,6 +65,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 120,
@@ -106,7 +112,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
-            "container_format": "bare",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],            "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 32,
             "min-ram": 4096,
@@ -132,7 +140,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
-            "container_format": "bare",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],            "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 8,
             "min-ram": 4096,
@@ -158,6 +168,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 124,
@@ -197,6 +210,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 124,
@@ -236,6 +252,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 32,
@@ -262,6 +281,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 8,
@@ -288,6 +310,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 140,
@@ -327,6 +352,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 140,
@@ -365,9 +393,12 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
-            "min-disk": 32,
+            "min-disk": 40,
             "min-ram": 4096,
             "vcpus": 2,
             "flavor": "BIGIP-12.0.0.LTM.Small",
@@ -391,10 +422,13 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 8,
-            "min-ram": 4096,
+            "min-ram": 2048,
             "vcpus": 2,
             "flavor": "BIGIP-12.0.0.LTM.Tiny",
             "volumes": []
@@ -417,6 +451,9 @@
             "startup_script": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/startup",
             "default_userdata": "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/userdata.json",
             "firstboot_flag_file": "true",
+            "file_injection": [
+                "https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl,f5_license_http_proxy.pl,root,root,0644"
+            ],
             "container_format": "bare",
             "disk_format": "qcow2",
             "min-disk": 55,
