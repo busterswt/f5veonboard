@@ -177,10 +177,10 @@ parameter_groups:
   - f5_fw_os_ha_network
   - f5_fw_os_trusted_network
   - f5_fw_os_untrusted_network
+  - f5_fw_default_gateway
 - parameters:
   - f5_fw_admin_password
   - f5_fw_root_password
-  - f5_fw_default_gateway
   - f5_fw_license_1
   - f5_fw_license_2
 - parameters:
@@ -199,7 +199,7 @@ resources:
   wait_handle:
     type: OS::Heat::WaitConditionHandle
     
-  onboard_security_group:
+  fw_cluster_orchestration_security_group:
     type: OS::Neutron::SecurityGroup
     properties:
       name: onboard_security_group
@@ -217,12 +217,12 @@ resources:
         - protocol: udp
           direction: egress            
     
-  onboard_instance:
+  fw_cluster_orchestration_instance:
     type: OS::Nova::Server
     properties:
       image: { get_param: image }
       security_groups:
-        - { get_resource: onboard_security_group }
+        - { get_resource: fw_cluster_orchestration_security_group }
       flavor: { get_param: flavor }
       networks:
         - network: { get_param: private_network }
@@ -287,24 +287,24 @@ resources:
             
             wget -q -c -nc -O /home/onboard/f5_onboard_ha_fw_bigips.yaml __f5_ve_launch_template__
             
-            echo "parmeters:" > f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_ve_image: __f5_fw_os_image__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_ve_flavor: __f5_fw_os_flavor__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  ssh_key: __f5_fw_os_ssh_key__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  mgmt_network: __f5_fw_os_mgmt_network__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  ha_network: __f5_fw_os_ha_network__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  trusted_network: __f5_fw_os_trusted_network__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  untrusted_network: __f5_fw_os_untrusted_network__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  default_gateway: __f5_fw_default_gateway__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  http_proxy_host: __http_proxy_host__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  http_proxy_port: __http_proxy_port__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  http_proxy_script_url: __http_proxy_script_url__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_admin_password: __f5_fw_admin_password__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_root_password: __f5_fw_root_password__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_license_1: __f5_fw_license_1__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_licnese_2: __f5_fw_license_2__ " >> f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "parameters:" > /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  f5_ve_image: __f5_fw_os_image__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  f5_ve_flavor: __f5_fw_os_flavor__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  ssh_key: __f5_fw_os_ssh_key__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  mgmt_network: __f5_fw_os_mgmt_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  ha_network: __f5_fw_os_ha_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  trusted_network: __f5_fw_os_trusted_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  untrusted_network: __f5_fw_os_untrusted_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  default_gateway: __f5_fw_default_gateway__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  http_proxy_host: __http_proxy_host__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  http_proxy_port: __http_proxy_port__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  http_proxy_script_url: __http_proxy_script_url__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  f5_admin_password: __f5_fw_admin_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  f5_root_password: __f5_fw_root_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  f5_license_1: __f5_fw_license_1__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  f5_license_2: __f5_fw_license_2__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             
-            heat -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env -c 15 f5-ha-fw__f5_fw_os_stack_postfix__
+            heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env -c 15 f5-ha-fw__f5_fw_os_stack_postfix__
             
             sleep 10 
             
@@ -320,10 +320,10 @@ resources:
             source f5-onboard-utils
             python $F5_ONBOARD_BIGIP_PY_DIR/cluster_generic.py \
             --ha-type pair --num-bigips 2 \
-            --bigip-floating-ip-addr-list $fw1_mgmt_ip $fw2_mgmt_ip \
-            --bigip-mgmt-addr-list $fw1_mgmt_ip $fw2_mgmt_ip \
-            --bigip-ha-addr-list $fw1_ha_ip $fw2_ha_ip \
-            --bigip-mirror-addr-list $fw1_ha_ip $fw2_ha_ip \
+            --bigip-floating-ip-addr-list $FW1_MGMT_IP $FW2_MGMT_IP \
+            --bigip-mgmt-addr-list $FW1_MGMT_IP $FW2_MGMT_IP \
+            --bigip-ha-addr-list $FW1_HA_IP $FW2_HA_IP \
+            --bigip-mirror-addr-list $FW1_HA_IP $FW2_HA_IP \
             --bigip-cluster-name f5-ha-fw__f5_fw_os_stack_postfix__ \
             --bigip-icontrol-username admin \
             --bigip-icontrol-password __f5_fw_admin_password__

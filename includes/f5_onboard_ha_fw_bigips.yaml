@@ -439,7 +439,7 @@ outputs:
     value: { get_resource: f5_fw_instance_2 }
   fw2_mgmt_ip:
     description: The mgmt IP address of f5 fw instance 2
-    value: { get_attr: [[f5_fw2_mgmt_port, fixed_ips, 0, ip_address]] }
+    value: { get_attr: [f5_fw2_mgmt_port, fixed_ips, 0, ip_address] }
   fw2_ha_ip:
     description: The HA IP address of f5 fw instance 2
     value: { get_attr: [f5_fw2_ha_port, fixed_ips, 0, ip_address] }
