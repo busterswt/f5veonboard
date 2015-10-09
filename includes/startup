@@ -255,8 +255,12 @@ function license_and_provision_modules() {
 # extract license from JSON data and license unit
 function license_bigip() {
   host=$(get_user_data_value {bigip}{license}{host})
+  port=$(get_user_data_value {bigip}{license}{port})
   basekey=$(get_user_data_value {bigip}{license}{basekey})
   addkey=$(get_user_data_value {bigip}{license}{addkey})
+  proxyhost=$(get_user_data_value {bigip}{license}{proxyhost})
+  proxyport=$(get_user_data_value {bigip}{license}{proxyport})
+  proxyscripturl=$(get_user_data_value {bigip}{license}{proxyscripturl})
   if [[ -f /etc/init.d/mysql ]]; then
       sed -ised -e 's/sleep\ 5/sleep\ 10/' /etc/init.d/mysql
       rm -f /etc/init.d/mysqlsed
@@ -267,20 +271,61 @@ function license_bigip() {
 
       # if a host or add-on key is provided, append to license client command
       [[ -n $host ]] && host_cmd="--host $host"
+      [[ -n $port ]] && port_cmd="--port $port"
       [[ -n $addkey ]] && addkey_cmd="--addkey $addkey"
+
+      proxy_support=`SOAPLicenseClient --help|grep protocol://proxy:port|wc -l`
+      if [[ -n proxyhost ]]; then
+          if [[ ! -n proxyport ]]; then
+              proxyport="8080"
+          fi
+          if [[ $proxy_support == 1 ]]; then
+              proxy_cmd="--proxy http://$proxyhost:$proxyport"
+          else
+              if [[ -f /config/f5_license_http_proxy.pl ]]; then
+                  perl /config/f5_license_http_proxy.pl 8443 $proxyhost:$proxyport &
+                  host_cmd="--host 127.0.0.1"
+                  port_cmd="--port 8443"
+              else
+                  if [[ -n proxyscripturl ]]; then
+                      export http_proxy=http://$proxyhost:$proxyport
+                      export https_proxy=http://$proxyhost:$proxyport
+                      curl -s -f --retry 5 --retry-delay 10 --retry-max-time 120 \
+	                  -m 10 -o /config/f5_license_http_proxy.pl $proxyscripturl
+	                  unset http_proxy
+	                  unset https_proxy
+	                  if [[ -f /config/f5_license_http_proxy.pl ]]; then
+						  perl /config/f5_license_http_proxy.pl 8443 $proxyhost:$proxyport &
+						  host_cmd="--host 127.0.0.1"
+						  port_cmd="--port 8443"                      
+                      else
+                          log "Failed to download license proxy from $proxyscripturl... attempting without proxy."
+                      fi
+                  else
+                      log "Proxy host provided, but f5_license_http_proxy script not provided... attempting without proxy."    
+                  fi
+              fi
+          fi
+      fi
 
       while true; do
         log "Licensing BIG-IP using license key $basekey..."
-        SOAPLicenseClient $host_cmd --basekey $basekey $addkey_cmd 2>&1 | eval $LOGGER_CMD
+        SOAPLicenseClient $host_cmd $port_cmd $proxy_cmd --basekey $basekey $addkey_cmd 2>&1 | eval $LOGGER_CMD
 
         if [[ $? == 0 && -f $BIGIP_LICENSE_FILE ]]; then
           log "Successfully licensed BIG-IP using user-data from instance metadata..."
+          if [[ -n proxyhost ]]; then
+              pkill -f ".f5_license_http_proxy.pl."
+          fi
           return 0
         else
           failed=$(($failed + 1))
 
           if [[ $failed -ge $BIGIP_LICENSE_RETRIES ]]; then
             log "Failed to license BIG-IP after $failed attempts, quitting..."
+            if [[ -n proxyhost ]]; then
+              pkill -f ".f5_license_http_proxy.pl."
+            fi
             return 1
           fi
 
@@ -533,7 +578,13 @@ function dhcp_tmm_if() {
   [[ -f $OS_DHCP_LEASE_FILE ]] && rm -f $OS_DHCP_LEASE_FILE
 
   log "Issuing DHCP request on interface 1.${1:3}..."
-  dhclient_cmd="dhclient -lf $OS_DHCP_LEASE_FILE -cf /dev/null -1 -T \
+  to_arg="-T"
+  is_el6_dhclient=`rpm -q dhclient | grep el6 | wc -l`
+  if [ $is_el6_dhclient == 1 ]
+  then
+    to_arg="-timeout"
+  fi  
+  dhclient_cmd="dhclient -lf $OS_DHCP_LEASE_FILE -cf /dev/null -1 $to_arg \
     $OS_DHCP_REQ_TIMEOUT -sf /bin/echo -R \
     subnet-mask,broadcast-address,interface-mtu,routers $1"
   eval "$dhclient_cmd 2>&1 | sed -e '/^$/d' -e 's/^/  /' | $LOGGER_CMD"

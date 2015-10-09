@@ -1,0 +1,207 @@
+heat_template_version: 2013-05-23
+
+description: This template deploys a Linux image as a TMOS VE image onboarding server.
+
+parameters:
+  flavor:
+    type: string
+    label: F5 Onboard Server Flavor
+    description: Type of instance (flavor) to be used on the compute instance.
+    default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor 
+  key:
+    type: string
+    label: F5 Onboard Server SSH Key Name
+    description: Name of key-pair to be installed on the compute instance.
+    default: my_key
+    constraints:
+      - custom_constraint: nova.keypair 
+  private_network:
+    type: string
+    label: F5 Onboard Server Management Network
+    description: Private network to attach server to.
+    default: private-net
+    constraints:
+      - custom_constraint: neutron.network
+  onboard_user:
+    type: string
+    label: F5 Onboard Server User
+    description: The onboard sudo user for interactive use.
+    default: onboard
+  onboard_password:
+    type: string
+    label: F5 Onboard Server User Password
+    description: The onboard sudo user for interactive use.
+    default: openstack
+    hidden: true
+  f5_image_import_auth_url:
+    type: string
+    label: Keystone Auth URL
+    description: Keystone URL to perform import services
+    default: http://10.1.0.42:5000/v2.0
+  f5_image_import_tenant:
+    type: string
+    label: Image Import Tenant
+    description: Tenant to perform image import services
+    default: admin
+  f5_image_import_user:
+    type: string
+    label: Image Import User
+    description: User to perform image import services
+    default: admin
+  f5_image_import_password:
+    type: string
+    label: Image Import User Password
+    description: Password used to perform image import services
+    default: admin
+    hidden: true
+  http_proxy_host:
+    type: string
+    label: HTTP Proxy Host to user to aquire resources
+    default: None
+  http_proxy_port:
+    type: number
+    label: HTTP Proxy Port to use to aquire resources
+    default: 8080
+    constraints:
+      - range: { min: 1024, max: 65534 }
+  f5_odk_package_url:
+    type: string
+    label: F5 OpenStack Deployment Kit URL
+    description: The URL to download the ODK debian package
+    default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/packages/odk.deb
+  f5_onboard_package_url:
+    type: string
+    label: F5 Virtual Edition Onboard Tools URL
+    description: The URL to download the ODK debian package
+    default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/packages/f5_onboard.deb
+  f5_image_import_bookmark_file_url:
+    type: string
+    label: F5 Glance Image Bookmark Policy URL
+    description: The URL for the image bookmark policy file
+    default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/bookmarks_f5se.json
+  
+parameter_groups:
+- parameters:
+  - flavor
+  - key
+  - private_network
+  - onboard_user
+  - onboard_password
+- parameters:
+  - f5_image_import_auth_url
+  - f5_image_import_tenant
+  - f5_image_import_user
+  - f5_image_import_password
+- parameters:
+  - f5_odk_package_url
+  - f5_onboard_package_url
+  - f5_image_import_bookmark_file_url
+
+resources:
+  wait_condition:
+    type: OS::Heat::WaitCondition
+    properties:
+      handle: { get_resource: wait_handle }
+      count: 1
+      timeout: 3600
+
+  wait_handle:
+    type: OS::Heat::WaitConditionHandle
+
+  onboard_image:
+    type: OS::Glance::Image
+    properties:
+      container_format: bare
+      disk_format: qcow2
+      is_public: False
+      location: http://10.1.0.42/ubuntu-14.04-server-cloudimg-amd64-disk1.img
+      min_disk: 40
+      min_ram: 512
+      name: F5OnboardImage
+      protected: False
+
+  onboard_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: onboard_security_group
+      rules: 
+        - protocol: icmp
+          direction: ingress
+        - protocol: icmp
+          direction: egress
+        - protocol: tcp
+          direction: ingress
+        - protocol: tcp
+          direction: egress
+        - protocol: udp
+          direction: ingress
+        - protocol: udp
+          direction: egress        
+
+  onboard_instance:
+    type: OS::Nova::Server
+    depends_on: onboard_image
+    properties:
+      image: { get_resource: onboard_image }
+      security_groups:
+        - { get_resource: onboard_security_group }
+      flavor: { get_param: flavor }
+      key_name: { get_param: key }
+      networks:
+        - network: { get_param: private_network }
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          params:
+            __onboard_user__: { get_param: onboard_user }
+            __onboard_password__: { get_param: onboard_password }
+            __f5_odk_package_url__: { get_param: f5_odk_package_url }
+            __f5_onboard_package_url__: { get_param: f5_onboard_package_url }
+            __f5_image_import_bookmark_file_url__: { get_param: f5_image_import_bookmark_file_url }
+            __f5_image_import_auth_url__: { get_param: f5_image_import_auth_url }
+            __f5_image_import_tenant__: { get_param: f5_image_import_tenant }
+            __f5_image_import_user__: { get_param: f5_image_import_user }
+            __f5_image_import_password__: { get_param: f5_image_import_password }
+            wc_notify: { get_attr: ['wait_handle', 'curl_cli'] }
+          template: |
+            #!/bin/bash -ex
+
+            # create a onboard user
+            adduser __onboard_user__ --disabled-login --gecos 'Onboard' --quiet --ingroup sudo
+            echo "__onboard_user__:__onboard_password__"|chpasswd
+            sed -i 's|[#]*PasswordAuthentication no|PasswordAuthentication yes|g' /etc/ssh/sshd_config
+            sed -i 's|UsePAM no|UsePAM yes|g' /etc/ssh/sshd_config
+            service ssh restart
+            
+            # download f5 packages
+            cd /home/onboard
+            
+            wget -q -c -nc -O /home/onboard/odk.deb __f5_odk_package_url__
+            wget -q -c -nc -O /home/onboard/f5_onboard.deb __f5_onboard_package_url__
+
+            # install packages
+            apt-get update
+            apt-get -y install unzip qemu-utils lvm2 python-keystoneclient python-glanceclient python-novaclient python-neutronclient python-cinderclient python-eventlet python-suds python-paramiko
+            dpkg -i /home/onboard/odk.deb
+            dpkg -i /home/onboard/f5_onboard.deb
+            
+            # sync images
+            export HOME=/home/onboard
+            export OS_AUTH_URL=__f5_image_import_auth_url__
+            export OS_USERNAME=__f5_image_import_user__
+            export OS_PASSWORD=__f5_image_import_password__
+            export OS_TENANT_NAME=__f5_image_import_tenant__
+            wget __f5_image_import_bookmark_file_url__ -N -O /home/onboard/image_bookmarks.json
+            f5-onboard-images --removefromglance --bookmarkfile /home/onboard/image_bookmarks.json
+            
+            wc_notify --data-binary '{"status": "SUCCESS"}'
+
+outputs:
+  instance_name:
+    description: Name of the instance
+    value: { get_attr: [onboard_instance, name] }
+  instance_ip:
+    description: The IP address of the deployed instance
+    value: { get_attr: [onboard_instance, first_address] }
