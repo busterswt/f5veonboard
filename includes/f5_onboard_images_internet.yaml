@@ -183,7 +183,7 @@ resources:
             export OS_PASSWORD=__f5_image_import_password__
             export OS_TENANT_NAME=__f5_image_import_tenant__
             wget __f5_image_import_bookmark_file_url__ -N -O /home/onboard/image_bookmarks.json
-            f5-onboard-images --bookmarkfile /home/onboard/image_bookmarks.json
+            f5-onboard-images --removefromglance --bookmarkfile /home/onboard/image_bookmarks.json
             
             wc_notify --data-binary '{"status": "SUCCESS"}'
 
