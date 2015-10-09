@@ -3,7 +3,7 @@
         {
             "name": "BIGIP Virtual Edition ALL 11.5.3 Large",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.5.3.2.10.196.ALL.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.5.3.2.10.196.ALL.qcow2.zip"
              ],
             "container_file_name": "BIGIP-11.5.3.2.10.196.ALL.qcow2.zip",
             "disk_image_file": "BIGIP-11.5.3.2.10.196.qcow2",
@@ -50,7 +50,7 @@
         {
         "name": "BIGIP Virtual Edition ALL 11.5.3 Medium",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.5.3.2.10.196.ALL.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.5.3.2.10.196.ALL.qcow2.zip"
              ],
             "container_file_name": "BIGIP-11.5.3.2.10.196.ALL.qcow2.zip",
             "disk_image_file": "BIGIP-11.5.3.2.10.196.qcow2",
@@ -97,7 +97,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 11.5.3 Small",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.5.3.2.10.196.LTM.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.5.3.2.10.196.LTM.qcow2.zip"
             ],
             "container_file_name": "BIGIP-11.5.3.2.10.196.LTM.qcow2.zip",
             "disk_image_file": "BIGIP-11.5.3.2.10.196.qcow2",
@@ -125,7 +125,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 11.5.3 Tiny",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.5.3.2.10.196.LTM_1SLOT.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.5.3.2.10.196.LTM_1SLOT.qcow2.zip"
             ],
             "container_file_name": "BIGIP-11.5.3.2.10.196.LTM_1SLOT.qcow2.zip",
             "disk_image_file": "BIGIP-11.5.3.2.10.196.qcow2",
@@ -153,7 +153,7 @@
         {
             "name": "BIGIP Virtual Edition ALL 11.6.0 Large",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.6.0.0.0.401.ALL.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.6.0.0.0.401.ALL.qcow2.zip"
             ],
             "container_file_name": "BIGIP-11.6.0.0.0.401.ALL.qcow2.zip",
             "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
@@ -195,7 +195,7 @@
         {
             "name": "BIGIP Virtual Edition ALL 11.6.0 Medium",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.6.0.0.0.401.ALL.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.6.0.0.0.401.ALL.qcow2.zip"
             ],
             "container_file_name": "BIGIP-11.6.0.0.0.401.ALL.qcow2.zip",
             "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
@@ -237,7 +237,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 11.6.0 Small",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.6.0.0.0.401.LTM.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.6.0.0.0.401.LTM.qcow2.zip"
             ],
             "container_file_name": "BIGIP-11.6.0.0.0.401.LTM.qcow2.zip",
             "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
@@ -266,7 +266,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 11.6.0 Tiny",
             "urls": [
-                "https://10.1.0.11/BIGIP-11.6.0.0.0.401.LTM_1SLOT.qcow2.zip"
+                "http://10.1.0.11/BIGIP-11.6.0.0.0.401.LTM_1SLOT.qcow2.zip"
             ],
             "container_file_name": "BIGIP-11.6.0.0.0.401.LTM_1SLOT.qcow2.zip",
             "disk_image_file": "BIGIP-11.6.0.0.0.401.qcow2",
@@ -295,7 +295,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 12.0.0 Large",
             "urls": [
-                "https://10.1.0.11/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip"
+                "http://10.1.0.11/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
             "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
@@ -337,7 +337,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 12.0.0 Medium",
             "urls": [
-                "https://10.1.0.11/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip"
+                "http://10.1.0.11/BIGIP-12.0.0.0.0.606.ALL.qcow2.zip"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.ALL.qcow2.zip",
             "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
@@ -378,7 +378,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 12.0.0 Small",
             "urls": [
-                "https://10.1.0.11/BIGIP-12.0.0.0.0.606.LTM.qcow2.zip"
+                "http://10.1.0.11/BIGIP-12.0.0.0.0.606.LTM.qcow2.zip"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.LTM.qcow2.zip",
             "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
@@ -407,7 +407,7 @@
         {
             "name": "BIGIP Virtual Edition LTM 11.6.0 Tiny",
             "urls": [
-                "https://10.1.0.11/BIGIP-12.0.0.0.0.606.LTM_1SLOT.qcow2.zip"
+                "http://10.1.0.11/BIGIP-12.0.0.0.0.606.LTM_1SLOT.qcow2.zip"
             ],
             "container_file_name": "BIGIP-12.0.0.0.0.606.LTM_1SLOT.qcow2.zip",
             "disk_image_file": "BIGIP-12.0.0.0.0.606.qcow2",
@@ -436,7 +436,7 @@
         {
             "name": "BIGIQ Virtual Edition 4.5",
             "urls": [
-                "https://10.1.0.11/BIG-IQ-4.5.0.0.0.7028.qcow2.zip"
+                "http://10.1.0.11/BIG-IQ-4.5.0.0.0.7028.qcow2.zip"
             ],
             "container_file_name": "BIG-IQ-4.5.0.0.0.7028.qcow2.zip",
             "disk_image_file": "BIG-IQ-4.5.0.0.0.7028.qcow2",
