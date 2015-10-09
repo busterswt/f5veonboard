@@ -43,14 +43,19 @@ parameters:
     description: Untrusted Interface Network.
     default: private-mgmt
     constraints:
-      - custom_constraint: neutron.network  
+      - custom_constraint: neutron.network
+  default_gateway:
+    type: string
+    label: Gateway IP
+    default: 172.17.1.1
+    description: Upstream Gateway IP Address
   http_proxy_host:
     type: string
-    label: HTTP Proxy Host to user to aquire resources
+    label: HTTP Proxy Host
     default: None
   http_proxy_port:
     type: number
-    label: HTTP Proxy Port to use to aquire resources
+    label: HTTP Proxy Port
     default: 8080
     constraints:
       - range: { min: 1024, max: 65534 }
@@ -58,32 +63,32 @@ parameters:
     type: string
     label: HTTP Proxy Script URL for F5 License Client
     default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl
-  f5_fw_ssh_key:
+  ssh_key:
     type: string
     label: F5 FW Root SSH Key Name
     description: Name of key-pair to be installed on the FW instances.
     default: my_key
     constraints:
       - custom_constraint: nova.keypair
-  f5_fw_admin_password:
+  f5_admin_password:
     type: string
     label: F5 FW Admin User Password
     description: Password used to perform image import services
     default: admin
     hidden: true  
-  f5_fw_root_password:
+  f5_root_password:
     type: string
     label: F5 FW Root User Password
     description: Password used to perform image import services
     default: admin
     hidden: true
-  f5_fw_license_1:
+  f5_license_1:
     type: string
     label: Primary FW License Base Key
     description: F5 TMOS License Basekey
     default: None
     hidden: true
-  f5_fw_license_2:
+  f5_license_2:
     type: string
     label: Secondary FW License Base Key
     description: F5 TMOS License Basekey
@@ -94,20 +99,21 @@ parameter_groups:
 - parameters:
   - f5_ve_image
   - f5_ve_flavor
-  - f5_fw_ssh_key
+  - ssh_key
   - mgmt_network
   - ha_network
   - trusted_network
   - untrusted_network
+  - default_gateway
 - parameters:
   - http_proxy_host
   - http_proxy_port
   - http_proxy_script_url
 - parameters:
-  - f5_fw_admin_password
-  - f5_fw_root_password
-  - f5_fw_license_1
-  - f5_fw_license_2
+  - f5_admin_password
+  - f5_root_password
+  - f5_license_1
+  - f5_license_2
 
 resources:
 
@@ -134,7 +140,7 @@ resources:
     type: OS::Neutron::SecurityGroup
     properties:
       description: security group rules for bigip mgmt port
-      name: bigip_mgmt_security-group
+      name: bigip_mgmt_security_group
       rules:
         - remote_ip_prefix: 0.0.0.0/0
           protocol: icmp
@@ -151,7 +157,7 @@ resources:
     type: OS::Neutron::SecurityGroup
     properties:
       description: security group rules for ha and mirroring self ip address
-      name: bigip_control_security-group
+      name: bigip_control_security_group
       rules:
         - remote_ip_prefix: 0.0.0.0/0
           protocol: icmp
@@ -169,21 +175,17 @@ resources:
     properties:
       network: {get_param: mgmt_network}
       security_groups: [{get_resource: bigip_mgmt_security_group}]
-   f5_fw1_mgmt_floatingip:
-    type: OS::Neutron::FloatingIP
-    properties:
-      port_id: {get_resource: f5_fw1_mgmt_port}
-   f5_fw1_ha_self_port:
+   f5_fw1_ha_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: ha_network}
       security_groups: [{get_resource: bigip_control_security_group}]
-   f5_fw1_trusted_self_port:
+   f5_fw1_trusted_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: trusted_network}
       security_groups: [{get_resource: bigip_fw_security_group}]
-   f5_fw1_untrusted_self_port:
+   f5_fw1_untrusted_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: untrusted_network}
@@ -194,21 +196,17 @@ resources:
     properties:
       network: {get_param: mgmt_network}
       security_groups: [{get_resource: bigip_mgmt_security_group}]
-   f5_fw2_mgmt_floatingip:
-    type: OS::Neutron::FloatingIP
-    properties:
-      port_id: {get_resource: f5_fw2_mgmt_port}
-   f5_fw2_ha_self_port:
+   f5_fw2_ha_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: ha_network}
       security_groups: [{get_resource: bigip_control_security_group}]
-   f5_fw2_trusted_self_port:
+   f5_fw2_trusted_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: trusted_network}
       security_groups: [{get_resource: bigip_fw_security_group}]
-   f5_fw2_untrusted_self_port:
+   f5_fw2_untrusted_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: untrusted_network}
@@ -219,9 +217,7 @@ resources:
     properties:
       image: { get_param: f5_ve_image }
       flavor: { get_param: f5_ve_flavor }
-      key_name: { get_param: f5_fw_ssh_key }
-      security_groups:
-        - { get_resource: f5_fw_security_group }
+      key_name: { get_param: ssh_key }
       networks:
         - port: {get_resource: f5_fw1_mgmt_port}
         - port: {get_resource: f5_fw1_ha_port}
@@ -235,9 +231,9 @@ resources:
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
             __f5_admin_password__: { get_param: f5_admin_password }
-            __f5_root_password_url__: { get_param: f5_root_password }
-            __f5_fw_license_1__: { get_param: f5_fw_license_1 }
-            wc_notify: { get_attr: ['wait_handle', 'curl_cli'] }
+            __f5_root_password__: { get_param: f5_root_password }
+            __f5_license_1__: { get_param: f5_license_1 }
+            __default_gateway__: { get_param: default_gateway }
           template: |
             {
                "bigip": {
@@ -246,11 +242,24 @@ resources:
                    "admin_password": "__f5_admin_password__",
                    "root_password": "__f5_root_password__",
                    "license": {
-                       "basekey": "__f5_fw_license_1__",
+                       "basekey": "__f5_license_1__",
                        "proxyhost": "__http_proxy_host__",
                        "proxyport": "__http_proxy_port__",
                        "proxyscripturl": "__http_proxy_script_url__"
                    },
+                   "system_cmds" : [
+                       "tmsh modify sys global-settings gui-setup disabled",
+                       "tmsh modify sys db tm.fw.defaultaction value drop",
+                       "tmsh create ltm virtual forward-all destination 0.0.0.0:0 mask any ip-forward profiles add { fastL4 } mirror enabled",
+                       "tmsh create security firewall policy fwpolicy",
+                       "tmsh modify security firewall global-rules enforced-policy fwpolicy",
+                       "tmsh modify security firewall policy fwpolicy rules add { reject-all { action reject place-before first } }",
+                       "tmsh modify security firewall policy fwpolicy rules add { allow-all { action accept-decisively place-before first } }",
+                       "tmsh create ltm monitor gateway-icmp gw-monitor defaults-from /Common/gateway_icmp interval 1 timeout 2",
+                       "tmsh create ltm pool gw-pool members add { __default_gateway__:0 } monitor gw-monitor",
+                       "tmsh create sys ha-group failovergroup active-bonus 5 pools add { gw-pool { weight 50 } } enabled",
+                       "tmsh modify cm traffic-group traffic-group-1 ha-group failovergroup"
+                   ],
                    "modules": {
                        "auto_provision": "false",
                        "ltm": "nominal",
@@ -311,9 +320,7 @@ resources:
     properties:
       image: { get_param: f5_ve_image }
       flavor: { get_param: f5_ve_flavor }
-      key_name: { get_param: f5_fw_ssh_key }
-      security_groups:
-        - { get_resource: f5_fw_security_group }
+      key_name: { get_param: ssh_key }
       networks:
         - port: {get_resource: f5_fw2_mgmt_port}
         - port: {get_resource: f5_fw2_ha_port}
@@ -327,9 +334,9 @@ resources:
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
             __f5_admin_password__: { get_param: f5_admin_password }
-            __f5_root_password_url__: { get_param: f5_root_password }
-            __f5_fw_license_2__: { get_param: f5_fw_license_2 }
-            wc_notify: { get_attr: ['wait_handle', 'curl_cli'] }
+            __f5_root_password__: { get_param: f5_root_password }
+            __f5_license_2__: { get_param: f5_license_2 }
+            __default_gateway__: { get_param: default_gateway }
           template: |
             {
                "bigip": {
@@ -338,11 +345,24 @@ resources:
                    "admin_password": "__f5_admin_password__",
                    "root_password": "__f5_root_password__",
                    "license": {
-                       "basekey": "__f5_fw_license_2__",
+                       "basekey": "__f5_license_2__",
                        "proxyhost": "__http_proxy_host__",
                        "proxyport": "__http_proxy_port__",
                        "proxyscripturl": "__http_proxy_script_url__"
                    },
+                   "system_cmds" : [
+                       "tmsh modify sys global-settings gui-setup disabled",
+                       "tmsh modify sys db tm.fw.defaultaction value drop",
+                       "tmsh create ltm virtual forward-all destination 0.0.0.0:0 mask any ip-forward profiles add { fastL4 } mirror enabled",
+                       "tmsh create security firewall policy fwpolicy",
+                       "tmsh modify security firewall global-rules enforced-policy fwpolicy",
+                       "tmsh modify security firewall policy fwpolicy rules add { reject-all { action reject place-before first } }",
+                       "tmsh modify security firewall policy fwpolicy rules add { allow-all { action accept-decisively place-before first } }",
+                       "tmsh create ltm monitor gateway-icmp gw-monitor defaults-from /Common/gateway_icmp interval 1 timeout 2",
+                       "tmsh create ltm pool gw-pool members add { __default_gateway__:0 } monitor gw-monitor",
+                       "tmsh create sys ha-group failovergroup active-bonus 5 pools add { gw-pool { weight 50 } } enabled",
+                       "tmsh modify cm traffic-group traffic-group-1 ha-group failovergroup"
+                   ],
                    "modules": {
                        "auto_provision": "false",
                        "ltm": "nominal",
@@ -403,23 +423,23 @@ outputs:
     description: Name of the instance
     value: { get_attr: [f5_fw_instance_1, name] }
   fw1_instance_id:
-    description: Name of the instance
-    value: { get_attr: [f5_fw_instance_1, id] }
+    description: ID of the instance
+    value: { get_resource: f5_fw_instance_1 }
   fw1_mgmt_ip:
     description: The mgmt IP address of f5 fw instance 1
-    value: { get_attr: [f5_fw_instance_1, first_address] }
-  fw1_mgmt_floating_ip:
-    description: The floating IP associated with fw1 mgmt address
-    value: { get_attr: [f5_fw1_mgmt_floatingip, floating_ip_address] }
+    value: { get_attr: [f5_fw1_mgmt_port, fixed_ips, 0, ip_address] }
+  fw1_ha_ip:
+    description: The HA IP address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_ha_port, fixed_ips, 0, ip_address] }
   fw2_instance_name:
     description: Name of the instance
     value: { get_attr: [f5_fw_instance_2, name] }
   fw2_instance_id:
-    description: Name of the instance
-    value: { get_attr: [f5_fw_instance_2, id] }
+    description: ID of the instance
+    value: { get_resource: f5_fw_instance_2 }
   fw2_mgmt_ip:
     description: The mgmt IP address of f5 fw instance 2
-    value: { get_attr: [f5_fw_instance_2, first_address] }
-  fw2_mgmt_floating_ip:
-    description: The floating IP associated with fw2 mgmt address
-    value: { get_attr: [f5_fw2_mgmt_floatingip, floating_ip_address] }
+    value: { get_attr: [[f5_fw2_mgmt_port, fixed_ips, 0, ip_address]] }
+  fw2_ha_ip:
+    description: The HA IP address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_ha_port, fixed_ips, 0, ip_address] }
