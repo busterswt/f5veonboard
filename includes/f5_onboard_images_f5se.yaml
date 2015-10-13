@@ -157,6 +157,8 @@ resources:
           params:
             __onboard_user__: { get_param: onboard_user }
             __onboard_password__: { get_param: onboard_password }
+            __http_proxy_host__: { get_param: http_proxy_host }
+            __http_proxy_port__: { get_param: http_proxy_port }
             __f5_odk_package_url__: { get_param: f5_odk_package_url }
             __f5_onboard_package_url__: { get_param: f5_onboard_package_url }
             __f5_image_import_bookmark_file_url__: { get_param: f5_image_import_bookmark_file_url }
@@ -175,27 +177,44 @@ resources:
             sed -i 's|UsePAM no|UsePAM yes|g' /etc/ssh/sshd_config
             service ssh restart
             
-            # download f5 packages
-            cd /home/onboard
+            # use http proxy if defined
+            if [[ "__http_proxy_host__" != "None" ]]
+            then
+                export http_proxy=http://__http_proxy_host__:__http_proxy_port__
+                export https_proxy=https://__http_proxy_host__:__http_proxy_port__
+            fi
             
+            # download packages
+            cd /home/onboard
             wget -q -c -nc -O /home/onboard/odk.deb __f5_odk_package_url__
             wget -q -c -nc -O /home/onboard/f5_onboard.deb __f5_onboard_package_url__
 
-            # install packages
+            # update package list and install dependancies
             apt-get update
             apt-get -y install unzip qemu-utils lvm2 python-keystoneclient python-glanceclient python-novaclient python-neutronclient python-cinderclient python-eventlet python-suds python-paramiko
+            
+            # install packages
             dpkg -i /home/onboard/odk.deb
             dpkg -i /home/onboard/f5_onboard.deb
             
-            # sync images
+            # get bookmarks file
+            wget __f5_image_import_bookmark_file_url__ -N -O /home/onboard/image_bookmarks.json
+            
+            # setup environment
             export HOME=/home/onboard
             export OS_AUTH_URL=__f5_image_import_auth_url__
             export OS_USERNAME=__f5_image_import_user__
             export OS_PASSWORD=__f5_image_import_password__
             export OS_TENANT_NAME=__f5_image_import_tenant__
-            wget __f5_image_import_bookmark_file_url__ -N -O /home/onboard/image_bookmarks.json
+            
+            # unset proxy if defined for local communications
+            unset http_proxy
+            unset https_proxy
+            
+            # sync images
             f5-onboard-images --removefromglance --bookmarkfile /home/onboard/image_bookmarks.json
             
+            # notify sync is complete
             wc_notify --data-binary '{"status": "SUCCESS"}'
 
 outputs:

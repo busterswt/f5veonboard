@@ -26,7 +26,7 @@ parameters:
   http_proxy_host:
     type: string
     label: HTTP Proxy Host to user to acquire resources
-    default: 10.1.0.11
+    default: None
   http_proxy_port:
     type: number
     label: HTTP Proxy Port to use to acquire resources
@@ -90,12 +90,12 @@ parameters:
     description: Type of instance (flavor) to be used for the fw instance.
     default: m1.medium
     constraints:
-      - custom_constraint: nova.flavor 
+      - custom_constraint: nova.flavor
   f5_bigiq_host:
     type: string
     label: F5 BIG-IQ API Endpoint Address
     description: The BIG-IQ API Enpoint IP Address
-    default: 172.16.1.98
+    default: None
   f5_bigiq_user:
     type: string
     label: F5 BIG-IQ API User
@@ -105,7 +105,7 @@ parameters:
     type: string
     label: F5 BIG-IQ API Password
     description: The BIG-IQ API user password
-    hidden: true
+    hidden: true 
   f5_fw_os_mgmt_network:
     type: string
     label: F5 FW Management Network
@@ -198,7 +198,7 @@ parameter_groups:
   - f5_fw_root_password
   - f5_bigiq_host
   - f5_bigiq_user
-  - f5_bigiq_password  
+  - f5_bigiq_password
   - f5_fw_license_1
   - f5_fw_license_2
 - parameters:
@@ -278,13 +278,6 @@ resources:
           template: |
             #!/bin/bash -ex
 
-            # create a onboard user
-            adduser onboard --disabled-login --gecos 'Onboard' --quiet --ingroup sudo
-            echo onboard:onboard|chpasswd
-            sed -i 's|[#]*PasswordAuthentication no|PasswordAuthentication yes|g' /etc/ssh/sshd_config
-            sed -i 's|UsePAM no|UsePAM yes|g' /etc/ssh/sshd_config
-            service ssh restart
-            
             # use http proxy if defined
             if [[ "__http_proxy_host__" != "None" ]]
             then
@@ -292,20 +285,11 @@ resources:
                 export https_proxy=https://__http_proxy_host__:__http_proxy_port__
             fi
             
-            # download packages
+            # download and install packages
             wget -q -c -nc -O /home/onboard/odk.deb __f5_odk_package_url__
             wget -q -c -nc -O /home/onboard/f5_onboard.deb __f5_onboard_package_url__
-
-            # update package list and install dependancies
-            apt-get update
-            apt-get -y install unzip qemu-utils lvm2 python-keystoneclient python-heatclient python-glanceclient python-novaclient python-neutronclient python-cinderclient python-eventlet python-suds python-paramiko
-            
-            # install packages
             dpkg -i /home/onboard/odk.deb
             dpkg -i /home/onboard/f5_onboard.deb    
-            
-            # download VE launch template
-            wget -q -c -nc -O /home/onboard/f5_onboard_ha_fw_bigips.yaml __f5_ve_launch_template__
             
             # setup environment
             export HOME=/home/onboard
@@ -313,6 +297,9 @@ resources:
             export OS_USERNAME=__f5_fw_os_user__
             export OS_PASSWORD=__f5_fw_os_password__
             export OS_TENANT_NAME=__f5_fw_os_tenant__
+            
+            # download VE launch template
+            wget -q -c -nc -O /home/onboard/f5_onboard_ha_fw_bigips.yaml __f5_ve_launch_template__
             
             echo "parameters:" > /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_ve_image: __f5_fw_os_image__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
@@ -378,18 +365,14 @@ resources:
             --bigip-cluster-name f5-ha-fw__f5_fw_os_stack_postfix__ \
             --bigip-icontrol-username admin \
             --bigip-icontrol-password __f5_fw_admin_password__
-
+            
             # register each unit with BIG-IQ security if defined
             if [[ "__f5_bigiq_host__" != "None" ]]
             then
-                 # register first firewall
-                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_fw_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_fw_admin_password__\", \"deviceIp\":\"$FW1_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
-                 # wait for completion of import task
-                 sleep 180
-                 # register second firewall
-                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_fw_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_fw_admin_password__\", \"deviceIp\":\"$FW2_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
+                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/tm/net/self/ -H 'Content-Type: application/json' -X POST -d '{"rootUser":"root","rootPassword":"__f5_fw_root_password__", "deviceUsername":"admin", "devicePassword":"__f5_fw_admin_password__", "deviceIp":"$FW1_MGMT_IP", "snapshotWorkingConfig":"true", "automaticallyUpdateFramework":"true", "createChildTasks":"true"}'
+                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/tm/net/self/ -H 'Content-Type: application/json' -X POST -d '{"rootUser":"root","rootPassword":"__f5_fw_root_password__", "deviceUsername":"admin", "devicePassword":"__f5_fw_admin_password__", "deviceIp":"$FW2_MGMT_IP", "snapshotWorkingConfig":"true", "automaticallyUpdateFramework":"true", "createChildTasks":"true"}'
             fi
-
-            # notify clustering is complete            
+            
+            # notify clustering is complete
             wc_notify --data-binary '{"status": "SUCCESS"}'    
     
