@@ -2,7 +2,7 @@
 
 # OpenStack auto-configuration script for F5 BIG-IP
 # author: John Gruber <j.gruber@f5.com>
-# updated: 2015-03-05
+# updated: 2015-10-13
 
 shopt -s extglob
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin/"
@@ -19,6 +19,10 @@ STATUS_CHECK_RETRIES=20
 STATUS_CHECK_INTERVAL=10
 
 # OpenStack user-data settings
+OS_CONFIG_DRIVE_DEVICE="/dev/hdd"
+OS_CONFIG_DRIVE_MOUNT_POINT="/config/OPENSTACK_CONFIG_DRIVE"
+OS_CONFIG_DRIVE_META_DATA_FILE="/openstack/latest/meta_data.json"
+OS_CONFIG_DRIVE_USER_DATA_FILE="/openstack/latest/user_data"
 OS_USER_DATA_LOCAL_FILE="/config/user_data.json"
 OS_USER_DATA_RETRIES=20
 OS_USER_DATA_RETRY_INTERVAL=10
@@ -26,7 +30,9 @@ OS_USER_DATA_RETRY_MAX_TIME=300
 OS_USER_DATA_HOST="169.254.169.254"
 OS_USER_DATA_PATH="/latest/user-data"
 OS_USER_DATA_TMP_FILE="/tmp/openstack-user-data.json"
+OS_META_DATA_TMP_FILE="/tmp/openstack-meta-data.json"
 OS_USER_DATA_CLEANUP=true
+OS_META_DATA_CLEANUP=true
 
 # OpenStack SSH public key injection settings
 OS_SSH_KEY_INJECT_ENABLED=true
@@ -83,6 +89,40 @@ function upcase() {
   echo "$1" | tr '[a-z]' '[A-Z]'
 }
 
+function get_config_drive_files() {
+  # check for config drive data first
+  if [[ ! -f $OS_META_DATA_TMP_FILE ]]; then
+	  if [[ -b $OS_CONFIG_DRIVE_DEVICE ]]; then
+		  log "Found IDE device $OS_CONFIG_DRIVE_DEVICE, trying to mount as config drive"
+		  mkdir $OS_CONFIG_DRIVE_MOUNT_POINT
+		  mount $OS_CONFIG_DRIVE_DEVICE $OS_CONFIG_DRIVE_MOUNT_POINT
+		  if [[ -f ${OS_CONFIG_DRIVE_MOUNT_POINT}${OS_CONFIG_DRIVE_META_DATA_FILE} ]]; then
+			  cp ${OS_CONFIG_DRIVE_MOUNT_POINT}${OS_CONFIG_DRIVE_META_DATA_FILE} $OS_META_DATA_TMP_FILE
+			  # remove newlines and repeated whitespace from JSON to appease Perl JSON \
+		      # module
+			  meta_data=$(cat $OS_META_DATA_TMP_FILE)
+		      echo "$meta_data" | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+		      > $OS_META_DATA_TMP_FILE
+			  chmod 0600 $OS_META_DATA_TMP_FILE
+		  fi
+		  if [[ -f ${OS_CONFIG_DRIVE_MOUNT_POINT}${OS_CONFIG_DRIVE_USER_DATA_FILE} ]]; then
+			  cp ${OS_CONFIG_DRIVE_MOUNT_POINT}${OS_CONFIG_DRIVE_USER_DATA_FILE} $OS_USER_DATA_TMP_FILE
+			  # remove newlines and repeated whitespace from JSON to appease Perl JSON \
+		      # module
+			  user_data=$(cat $OS_USER_DATA_TMP_FILE)
+		      echo "$user_data" | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+		      > $OS_USER_DATA_TMP_FILE
+			  chmod 0600 $OS_USER_DATA_TMP_FILE
+		  fi
+		  umount $OS_CONFIG_DRIVE_MOUNT_POINT
+		  rmdir $OS_CONFIG_DRIVE_MOUNT_POINT
+		  return 0
+	  else
+	      return 1
+	  fi
+  fi
+}
+
 function get_json_value() {
   echo -n $(perl -MJSON -ne "\$value = decode_json(\$_)->$1; \
     \$value =~ s/([^a-zA-Z0-9])/\$1/g; print \$value" $2)
@@ -90,6 +130,11 @@ function get_json_value() {
 
 function get_user_data_value() {
   echo -n $(get_json_value $1 $OS_USER_DATA_TMP_FILE)
+}
+
+function get_meta_data_public_key() {
+  echo -n $(perl -MJSON -ne "\$data = decode_json(\$_); \
+  print(values(%{\$data->{public_keys}}));" $OS_META_DATA_TMP_FILE)
 }
 
 function get_user_data_system_cmds() {
@@ -115,7 +160,12 @@ function get_dhcp_server_address() {
 }
 
 function test_metadata_service() {
-  curl -s http://$1 &> /dev/null
+  get_config_drive_files
+  if [[ $? != 0 ]]; then
+      return curl -s http://$1 &> /dev/null
+  else
+	  return 0
+  fi
 }
 
 # check if MCP is running
@@ -180,28 +230,44 @@ function inject_openssh_key() {
 
   if [[ $ssh_key_inject == true ]]; then
     rm -f $OS_SSH_KEY_TMP_FILE
-    
-    log "Retrieving SSH public key from $1..."
-    curl -s -f --retry $OS_SSH_KEY_RETRIES --retry-delay \
-      $OS_SSH_KEY_RETRY_INTERVAL --retry-max-time \
-      $OS_SSH_KEY_RETRY_MAX_TIME -o $OS_SSH_KEY_TMP_FILE $1
-
-    if [[ $? == 0 ]]; then
-      ssh_key=$(head -n1 $OS_SSH_KEY_TMP_FILE)
-      grep -q "$ssh_key" $ROOT_AUTHORIZED_KEYS
-
-      if [[ $? != 0 ]]; then 
-        echo $ssh_key >> $ROOT_AUTHORIZED_KEYS
-        restorecon $ROOT_AUTHORIZED_KEYS
-        rm -f $OS_SSH_KEY_TMP_FILE
-        log "Successfully installed SSH public key..."
-      else
-        log "SSH public key already installed, skipping..."
-      fi
+    # copy temp files from config drive if present
+    get_config_drive_files
+    if [[ -f  $OS_META_DATA_TMP_FILE ]]; then
+        log "Retrieving SSH public key from $OS_META_DATA_TMP_FILE..."
+        ssh_key=$(get_meta_data_public_key)
+        if [[ ! -z $ssh_key ]]; then
+            grep -q "$ssh_key" $ROOT_AUTHORIZED_KEYS
+		    if [[ $? != 0 ]]; then 
+			    echo $ssh_key >> $ROOT_AUTHORIZED_KEYS
+			    restorecon $ROOT_AUTHORIZED_KEYS
+			    log "Successfully installed SSH public key..."
+		    else
+			    log "SSH public key already installed, skipping..."
+		    fi
+        fi
     else
-      log "Could not retrieve SSH public key after $OS_SSH_KEY_RETRIES attempts, quitting..."
-      return 1
-    fi
+		log "Retrieving SSH public key from $1..."
+		curl -s -f --retry $OS_SSH_KEY_RETRIES --retry-delay \
+		  $OS_SSH_KEY_RETRY_INTERVAL --retry-max-time \
+		  $OS_SSH_KEY_RETRY_MAX_TIME -o $OS_SSH_KEY_TMP_FILE $1
+
+		if [[ $? == 0 ]]; then
+		  ssh_key=$(head -n1 $OS_SSH_KEY_TMP_FILE)
+		  grep -q "$ssh_key" $ROOT_AUTHORIZED_KEYS
+
+		  if [[ $? != 0 ]]; then 
+			echo $ssh_key >> $ROOT_AUTHORIZED_KEYS
+			restorecon $ROOT_AUTHORIZED_KEYS
+			rm -f $OS_SSH_KEY_TMP_FILE
+			log "Successfully installed SSH public key..."
+		  else
+			log "SSH public key already installed, skipping..."
+		  fi
+		else
+		  log "Could not retrieve SSH public key after $OS_SSH_KEY_RETRIES attempts, quitting..."
+		  return 1
+		fi
+	fi
   else
     log "SSH public key injection disabled, skipping..."
   fi
@@ -209,35 +275,48 @@ function inject_openssh_key() {
 
 # retrieve user-data from instance metadata
 function get_user_data() {
-  rm -f $OS_USER_DATA_TMP_FILE	  
-  log "Retrieving user-data from $1..."
-  # Use max-time 10 because it should respond within a second or two
-  # and we don't want to waste all of our retry time waiting.
-  curl -s -f --retry $OS_USER_DATA_RETRIES --retry-delay \
-	$OS_USER_DATA_RETRY_INTERVAL --retry-max-time $OS_USER_DATA_RETRY_MAX_TIME \
-	-m 10 \
-	-o $OS_USER_DATA_TMP_FILE $1
+  
+  # if we have not copied from config drive already
+  # make sure we don't have an old copy of the 
+  # user_data present and try to copy from config
+  # drive first.
+  if [[ ! -f $OS_META_DATA_TMP_FILE ]]; then
+      rm -f $OS_META_DATA_TMP_FILE
+      # copy temp files from config drive if present
+      get_config_drive_files
+  fi
+  
+  # no file from config drive, attemp the metadata service
+  if [[ ! -f  $OS_USER_DATA_TMP_FILE ]]; then  	  
+	  log "Retrieving user-data from $1..."
+	  # Use max-time 10 because it should respond within a second or two
+	  # and we don't want to waste all of our retry time waiting.
+	  curl -s -f --retry $OS_USER_DATA_RETRIES --retry-delay \
+		$OS_USER_DATA_RETRY_INTERVAL --retry-max-time $OS_USER_DATA_RETRY_MAX_TIME \
+		-m 10 \
+		-o $OS_USER_DATA_TMP_FILE $1
 
-  if [[ $? == 0 ]]; then
-	# remove newlines and repeated whitespace from JSON to appease Perl JSON \
-	# module
-	user_data=$(cat $OS_USER_DATA_TMP_FILE)
-	echo "$user_data" | tr -d '\n' | tr -d '\r' | tr -s ' ' \
-	  > $OS_USER_DATA_TMP_FILE
-	chmod 0600 $OS_USER_DATA_TMP_FILE
-	log "Successfully retrieved user-data from instance metadata..."
-  else
-	log "Could not retrieve user-data after $OS_USER_DATA_RETRIES attempts, trying local policy..."
-	if [[ -f $OS_USER_DATA_LOCAL_FILE ]]; then
-      log "Found locally installed $OS_USER_DATA_LOCAL_FILE. Using local file for user data."
-      # remove newlines and repeated whitespace from JSON to appease Perl JSON \
-      # module
-      cat OS_USER_DATA_LOCAL_FILE | tr -d '\n' | tr -d '\r' | tr -s ' ' \
-      > $OS_USER_DATA_TMP_FILE
-      chmod 0600 $OS_USER_DATA_TMP_FILE
-    else
-	  return 1
-	fi
+	  if [[ $? == 0 ]]; then
+		# remove newlines and repeated whitespace from JSON to appease Perl JSON \
+		# module
+		user_data=$(cat $OS_USER_DATA_TMP_FILE)
+		echo "$user_data" | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+		  > $OS_USER_DATA_TMP_FILE
+		chmod 0600 $OS_USER_DATA_TMP_FILE
+		log "Successfully retrieved user-data from instance metadata..."
+	  else
+		log "Could not retrieve user-data after $OS_USER_DATA_RETRIES attempts, trying local policy..."
+		if [[ -f $OS_USER_DATA_LOCAL_FILE ]]; then
+		  log "Found locally installed $OS_USER_DATA_LOCAL_FILE. Using local file for user data."
+		  # remove newlines and repeated whitespace from JSON to appease Perl JSON \
+		  # module
+		  cat OS_USER_DATA_LOCAL_FILE | tr -d '\n' | tr -d '\r' | tr -s ' ' \
+		  > $OS_USER_DATA_TMP_FILE
+		  chmod 0600 $OS_USER_DATA_TMP_FILE
+		else
+		  return 1
+		fi
+	  fi
   fi
   
 }
@@ -718,6 +797,7 @@ function execute_system_cmd() {
 # cleanup user-data, disable for debug purposes
 function cleanup_user_data() {
   [[ $OS_USER_DATA_CLEANUP == true ]] && rm -f $OS_USER_DATA_TMP_FILE
+  [[ $OS_META_DATA_CLEANUP == true ]] && rm -f $OS_META_DATA_TMP_FILE
 }
 
 function force_platform_id() {
@@ -819,8 +899,12 @@ function main() {
         test_metadata_service $OS_USER_DATA_HOST
 
         if [[ $? != 0 ]]; then
-          log "Could not locate a viable metadata server, quitting..."
-          exit 1
+          log "Could not locate a viable metadata server, setting default policy..."
+          # no user data was supplied. Push a default policy file.
+		  echo '{ "bigip": { "ssh_key_inject": "true", "network": { "dhcp": "true" } } }' > $OS_USER_DATA_TMP_FILE
+		  chmod 0600 $OS_USER_DATA_TMP_FILE
+		  # configure base L2 and L3 networking
+		  configure_tmm_ifs
         fi
       fi
       
@@ -843,10 +927,8 @@ function main() {
         execute_system_cmd
       else
         # no user data was supplied. Push a default policy file.
-        echo '{ "bigip": { "ssh_key_inject": "true", "network": { "dhcp": "true" } } }' > $OS_USER_DATA_TMP_FILE
+        echo '{ "bigip": { "ssh_key_inject": "false", "network": { "dhcp": "true" } } }' > $OS_USER_DATA_TMP_FILE
         chmod 0600 $OS_USER_DATA_TMP_FILE
-        # set root SSH key
-        inject_openssh_key "http://${OS_USER_DATA_HOST}${OS_SSH_KEY_PATH}"
         # configure base L2 and L3 networking
         configure_tmm_ifs
       fi
