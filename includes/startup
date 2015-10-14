@@ -89,6 +89,26 @@ function upcase() {
   echo "$1" | tr '[a-z]' '[A-Z]'
 }
 
+function is_false() {
+    val=$1
+    if [[ ! -n $val ]]; then
+        echo 0
+        return 0
+    fi
+    if [[ $(upcase $val) == 'NONE' ]]; then
+        echo 0
+        return 0
+    fi
+    if [[ $(upcase $val) == 'FALSE' ]]; then
+        echo 0
+        return 0
+    fi
+    if [[ $(upcase $val) == '0' ]]; then
+        echo 0
+        return 0
+    fi
+}
+
 function get_config_drive_files() {
   # check for config drive data first
   if [[ ! -f $OS_META_DATA_TMP_FILE ]]; then
@@ -349,13 +369,17 @@ function license_bigip() {
       failed=0
 
       # if a host or add-on key is provided, append to license client command
-      [[ -n $host ]] && host_cmd="--host $host"
-      [[ -n $port ]] && port_cmd="--port $port"
+      if [[ ! $(is_false $host) ]]; then
+          host_cmd="--host $host"
+          if [[ ! $(is_false $port) ]]; then
+              port_cmd="--port $port"
+          fi
+      fi
       [[ -n $addkey ]] && addkey_cmd="--addkey $addkey"
 
       proxy_support=`SOAPLicenseClient --help|grep protocol://proxy:port|wc -l`
-      if [[ -n proxyhost ]]; then
-          if [[ ! -n proxyport ]]; then
+      if [[ ! $(is_false $proxy_host) ]]; then
+          if [[ ! $(is_false $proxyport) ]]; then
               proxyport="8080"
           fi
           if [[ $proxy_support == 1 ]]; then
@@ -363,11 +387,11 @@ function license_bigip() {
           else
               activation_host='104.219.107.132'
 			  activation_port='443'
-			  if [[ -n $host ]]; then
+			  if [[ ! $(is_false $host) ]]; then
 				  activation_host=$host
-			  fi
-			  if [[ -n $port ]]; then
-				  activation_port=$port
+			      if [[ ! $(is_false $port) ]]; then
+				      activation_port=$port
+			      fi
 			  fi
               if [[ -f /config/f5_license_http_proxy.pl ]]; then
                   log "Starting license HTTP proxy proxy to - $proxyhost:$proxyport to activation against - $activation_host:$activation_port"

@@ -217,8 +217,8 @@ resources:
             __http_proxy_host__: { get_param: http_proxy_host }
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
-            __license_activation_proxy_host__: { get_param: license_activation_host }
-            __license_activation_proxy_port__: { get_param: license_activation_port }
+            __license_activation_host__: { get_param: license_activation_host }
+            __license_activation_port__: { get_param: license_activation_port }
             __f5_network_1__: { get_param: f5_network_1 }
             __f5_network_2__: { get_param: f5_network_2 }
             __f5_network_3__: { get_param: f5_network_3 }
