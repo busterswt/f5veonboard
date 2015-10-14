@@ -182,7 +182,8 @@ function get_dhcp_server_address() {
 function test_metadata_service() {
   get_config_drive_files
   if [[ $? != 0 ]]; then
-      return curl -s http://$1 &> /dev/null
+      curl -s http://$1 &> /dev/null
+      return $?
   else
 	  return 0
   fi
