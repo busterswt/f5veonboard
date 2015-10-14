@@ -361,12 +361,22 @@ function license_bigip() {
           if [[ $proxy_support == 1 ]]; then
               proxy_cmd="--proxy http://$proxyhost:$proxyport"
           else
+              activation_host='104.219.107.132'
+			  activation_port='443'
+			  if [[ -n $host ]]; then
+				  activation_host=$host
+			  fi
+			  if [[ -n $port ]]; then
+				  activation_port=$port
+			  fi
               if [[ -f /config/f5_license_http_proxy.pl ]]; then
-                  perl /config/f5_license_http_proxy.pl 8443 $proxyhost:$proxyport &
+                  log "Starting license HTTP proxy proxy to - $proxyhost:$proxyport to activation against - $activation_host:$activation_port"
+                  perl /config/f5_license_http_proxy.pl 8443 $proxyhost:$proxyport $activation_host:$activation_port &
                   host_cmd="--host 127.0.0.1"
                   port_cmd="--port 8443"
               else
-                  if [[ -n proxyscripturl ]]; then
+                  if [[ -n $proxyscripturl ]]; then
+                      log "Downloading license proxy from $proxyscripturl..."
                       export http_proxy=http://$proxyhost:$proxyport
                       export https_proxy=http://$proxyhost:$proxyport
                       curl -s -f --retry 5 --retry-delay 10 --retry-max-time 120 \
@@ -374,14 +384,15 @@ function license_bigip() {
 	                  unset http_proxy
 	                  unset https_proxy
 	                  if [[ -f /config/f5_license_http_proxy.pl ]]; then
-						  perl /config/f5_license_http_proxy.pl 8443 $proxyhost:$proxyport &
+	                      log "Starting license HTTP proxy proxy to - $proxyhost:$proxyport to activation against - $activation_host:$activation_port"
+						  perl /config/f5_license_http_proxy.pl 8443 $proxyhost:$proxyport $activation_host:$activation_port &
 						  host_cmd="--host 127.0.0.1"
 						  port_cmd="--port 8443"                      
                       else
                           log "Failed to download license proxy from $proxyscripturl... attempting without proxy."
                       fi
                   else
-                      log "Proxy host provided, but f5_license_http_proxy script not provided... attempting without proxy."    
+                      log "Proxy host provided, but f5_license_http_proxy script not provided... attempting licensing without proxy."    
                   fi
               fi
           fi

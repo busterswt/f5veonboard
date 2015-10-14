@@ -38,15 +38,15 @@ sub new_server {
 
 sub new_connection {
     my $server = shift;
-    my $remote_host = shift;
-    my $remote_port = shift;
+    my $proxy_host = shift;
+    my $proxy_port = shift;
+    my $activation_host = shift;
+    my $activation_port = shift;
 
     my $client = $server->accept;
     my $client_ip = client_ip($client);
 
     print "Connection from $client_ip accepted.\n" if $debug;
-    my $activate_host = '104.219.107.132';
-    my $activate_port = '443';
 
     my $remote = new_conn($remote_host, $remote_port);
     my $data = "CONNECT $activate_host:$activate_port HTTP/1.1\n";
@@ -94,10 +94,11 @@ sub client_ip {
     return inet_ntoa($client->sockaddr);
 }
 
-die "Usage: $0 <local port> <proxy_host>:<proxy_port>" unless @ARGV == 2;
+die "Usage: $0 <local port> <proxy_host>:<proxy_port> <activation_host>:<activation_port>" unless @ARGV == 3;
 
 my $local_port = shift;
 my ($remote_host, $remote_port) = split ':', shift();
+my ($activation_host, $activation_port) = split ':', shift();
 
 
 print "Starting a server on 127.0.0.1:$local_port\n" if $debug;
@@ -107,7 +108,7 @@ $ioset->add($server);
 while (1) {
     for my $socket ($ioset->can_read) {
         if ($socket == $server) {
-            new_connection($server, $remote_host, $remote_port);
+            new_connection($server, $remote_host, $remote_port, $activation_host, $activation_port);
         }
         else {
             next unless exists $socket_map{$socket};

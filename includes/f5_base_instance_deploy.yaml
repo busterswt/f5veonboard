@@ -15,7 +15,12 @@ parameters:
     description: Type of instance (flavor) to be used for the VE.
     default: m1.medium
     constraints:
-      - custom_constraint: nova.flavor 
+      - custom_constraint: nova.flavor
+  f5_use_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false 
   f5_mgmt_network:
     type: string
     label: VE Management Network
@@ -86,6 +91,7 @@ parameter_groups:
 - parameters:
   - f5_ve_image
   - f5_ve_flavor
+  - f5_use_config_drive
   - ssh_key
   - f5_mgmt_network
   - f5_ha_network
@@ -176,6 +182,7 @@ resources:
     properties:
       image: { get_param: f5_ve_image }
       flavor: { get_param: f5_ve_flavor }
+      config_drive: { get_param: f5_use_config_drive }
       key_name: { get_param: ssh_key }
       networks:
         - port: {get_resource: f5_mgmt_port}

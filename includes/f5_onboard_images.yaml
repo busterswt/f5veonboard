@@ -35,6 +35,20 @@ parameters:
     description: The onboard sudo user for interactive use.
     default: openstack
     hidden: true
+  package_proxy:
+    type: string
+    label: Package Install Proxy for APT
+    default: http://10.1.0.11:3142
+  http_proxy_host:
+    type: string
+    label: HTTP Proxy Host to user to aquire resources
+    default: None
+  http_proxy_port:
+    type: number
+    label: HTTP Proxy Port to use to aquire resources
+    default: 8080
+    constraints:
+      - range: { min: 1024, max: 65534 }
   f5_odk_package_url:
     type: string
     label: F5 OpenStack Deployment Kit URL
@@ -78,6 +92,9 @@ parameter_groups:
   - private_network
   - onboard_user
   - onboard_password
+  - package_proxy
+  - http_proxy_host
+  - http_proxy_port
 - parameters:
   - f5_image_import_auth_url
   - f5_image_import_tenant
@@ -146,6 +163,9 @@ resources:
           params:
             __onboard_user__: { get_param: onboard_user }
             __onboard_password__: { get_param: onboard_password }
+            __package_proxy__: { get_param: package_proxy }
+            __http_proxy_host__: { get_param: http_proxy_host }
+            __http_proxy_port__: { get_param: http_proxy_port }
             __f5_odk_package_url__: { get_param: f5_odk_package_url }
             __f5_onboard_package_url__: { get_param: f5_onboard_package_url }
             __f5_image_import_bookmark_file_url__: { get_param: f5_image_import_bookmark_file_url }
@@ -164,11 +184,24 @@ resources:
             sed -i 's|UsePAM no|UsePAM yes|g' /etc/ssh/sshd_config
             service ssh restart
             
+            # use http proxy if defined
+            if [[ "__http_proxy_host__" != "None" ]]
+            then
+                export http_proxy=http://__http_proxy_host__:__http_proxy_port__
+                export https_proxy=https://__http_proxy_host__:__http_proxy_port__
+            fi
+            
             # download f5 packages
             cd /home/onboard
             
             wget -q -c -nc -O /home/onboard/odk.deb __f5_odk_package_url__
             wget -q -c -nc -O /home/onboard/f5_onboard.deb __f5_onboard_package_url__
+
+            if [[ "__package_proxy__" != "None" ]]
+            then
+                echo "Acquire::http::proxy \"__package_proxy__\";" > /etc/apt/apt.conf
+                echo "Acquire::https::proxy \"__package_proxy__\";" >> /etc/apt/apt.conf
+            fi
 
             # install packages
             apt-get update
