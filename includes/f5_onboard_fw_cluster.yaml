@@ -23,10 +23,14 @@ parameters:
     default: private-net
     constraints:
       - custom_constraint: neutron.network
+  package_proxy:
+    type: string
+    label: Package Install Proxy for APT
+    default: http://10.1.0.11:3142
   http_proxy_host:
     type: string
     label: HTTP Proxy Host to user to acquire resources
-    default: 10.1.0.11
+    default: None
   http_proxy_port:
     type: number
     label: HTTP Proxy Port to use to acquire resources
@@ -37,6 +41,16 @@ parameters:
     type: string
     label: HTTP Proxy Script URL for F5 License Client
     default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl
+  license_activation_host:
+    type: string
+    label: License Activation Host
+    default: None
+  license_activation_port:
+    type: number
+    label: License Activation Port
+    default: 443
+    constraints:
+      - range: { min: 1, max: 65534 }
   f5_odk_package_url:
     type: string
     label: F5 OpenStack Deployment Kit URL
@@ -91,6 +105,11 @@ parameters:
     default: m1.medium
     constraints:
       - custom_constraint: nova.flavor 
+  f5_fw_os_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false 
   f5_bigiq_host:
     type: string
     label: F5 BIG-IQ API Endpoint Address
@@ -176,9 +195,12 @@ parameter_groups:
   - flavor
   - image
   - private_network
+  - package_proxy
   - http_proxy_host
   - http_proxy_port
   - http_proxy_script_url
+  - license_activation_host
+  - license_activation_port
 - parameters:
   - f5_fw_os_stack_postfix
   - f5_fw_os_auth_url
@@ -187,6 +209,7 @@ parameter_groups:
   - f5_fw_os_password
   - f5_fw_os_image
   - f5_fw_os_flavor
+  - f5_fw_os_config_drive
   - f5_fw_os_ssh_key
   - f5_fw_os_mgmt_network
   - f5_fw_os_ha_network
@@ -251,6 +274,7 @@ resources:
             __http_proxy_host__: { get_param: http_proxy_host }
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
+            __package_proxy__: { get_param: package_proxy }
             __f5_odk_package_url__: { get_param: f5_odk_package_url }
             __f5_onboard_package_url__: { get_param: f5_onboard_package_url }
             __f5_ve_launch_template__: { get_param: f5_ve_launch_template }
@@ -261,6 +285,7 @@ resources:
             __f5_fw_os_password__: { get_param: f5_fw_os_password }
             __f5_fw_os_image__: { get_param: f5_fw_os_image }
             __f5_fw_os_flavor__: { get_param: f5_fw_os_flavor }
+            __f5_fw_os_config_drive__: { get_param: f5_fw_os_config_drive }
             __f5_fw_os_ssh_key__: { get_param: f5_fw_os_ssh_key }
             __f5_fw_os_mgmt_network__: { get_param: f5_fw_os_mgmt_network }
             __f5_fw_os_ha_network__: { get_param: f5_fw_os_ha_network }
@@ -272,6 +297,8 @@ resources:
             __f5_bigiq_host__: { get_param: f5_bigiq_host }
             __f5_bigiq_user__: { get_param: f5_bigiq_user }
             __f5_bigiq_password__: { get_param: f5_bigiq_password }
+            __f5_fw_license_activation_host__ : { get_param: license_activation_host }
+            __f5_fw_license_activation_port__ : { get_param: license_activation_port }
             __f5_fw_license_1__: { get_param: f5_fw_license_1 }
             __f5_fw_license_2__: { get_param: f5_fw_license_2 }
             wc_notify: { get_attr: ['wait_handle', 'curl_cli'] }
@@ -296,6 +323,12 @@ resources:
             wget -q -c -nc -O /home/onboard/odk.deb __f5_odk_package_url__
             wget -q -c -nc -O /home/onboard/f5_onboard.deb __f5_onboard_package_url__
 
+            if [[ "__package_proxy__" != "None" ]]
+            then
+                echo "Acquire::http::proxy \"__package_proxy__\";" > /etc/apt/apt.conf
+                echo "Acquire::https::proxy \"__package_proxy__\";" >> /etc/apt/apt.conf
+            fi
+
             # update package list and install dependancies
             apt-get update
             apt-get -y install unzip qemu-utils lvm2 python-keystoneclient python-heatclient python-glanceclient python-novaclient python-neutronclient python-cinderclient python-eventlet python-suds python-paramiko
@@ -317,6 +350,7 @@ resources:
             echo "parameters:" > /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_ve_image: __f5_fw_os_image__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_ve_flavor: __f5_fw_os_flavor__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  config_drive: f5_fw_os_config_drive " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  ssh_key: __f5_fw_os_ssh_key__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  mgmt_network: __f5_fw_os_mgmt_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  ha_network: __f5_fw_os_ha_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
@@ -326,10 +360,16 @@ resources:
             echo "  http_proxy_host: __http_proxy_host__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  http_proxy_port: __http_proxy_port__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  http_proxy_script_url: __http_proxy_script_url__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  license_activation_host:  __f5_fw_license_activation_host__  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  license_activation_port:  __f5_fw_license_activation_port__  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_admin_password: __f5_fw_admin_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_root_password: __f5_fw_root_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_license_1: __f5_fw_license_1__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_license_2: __f5_fw_license_2__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            
+            # unset proxy if defined for local communications
+            unset http_proxy
+            unset https_proxy
             
             # build tenant stack
             heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env -c 15 f5-ha-fw__f5_fw_os_stack_postfix__
@@ -362,10 +402,6 @@ resources:
             FW2_HA_IP=`echo $FW2_HA_IP | tr -d '"'`
             
             sleep 120
-            
-            # unset proxy if defined for local communications
-            unset http_proxy
-            unset https_proxy
             
             # cluster tenant stacked BIG-IPS
             source f5-onboard-utils

@@ -63,6 +63,21 @@ parameters:
     type: string
     label: HTTP Proxy Script URL for F5 License Client
     default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_license_http_proxy.pl
+  license_activation_host:
+    type: string
+    label: License Activation Host
+    default: None
+  license_activation_port:
+    type: number
+    label: License Activation Port
+    default: 443
+    constraints:
+      - range: { min: 1, max: 65534 }
+  config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false   
   ssh_key:
     type: string
     label: F5 FW Root SSH Key Name
@@ -99,6 +114,7 @@ parameter_groups:
 - parameters:
   - f5_ve_image
   - f5_ve_flavor
+  - config_drive
   - ssh_key
   - mgmt_network
   - ha_network
@@ -109,6 +125,8 @@ parameter_groups:
   - http_proxy_host
   - http_proxy_port
   - http_proxy_script_url
+  - license_activation_host
+  - license_activation_port
 - parameters:
   - f5_admin_password
   - f5_root_password
@@ -218,6 +236,7 @@ resources:
       image: { get_param: f5_ve_image }
       flavor: { get_param: f5_ve_flavor }
       key_name: { get_param: ssh_key }
+      config_drive: { get_param: config_drive }
       networks:
         - port: {get_resource: f5_fw1_mgmt_port}
         - port: {get_resource: f5_fw1_ha_port}
@@ -230,6 +249,8 @@ resources:
             __http_proxy_host__: { get_param: http_proxy_host }
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
+            __license_activation_host__: { get_param: license_activation_host }
+            __license_activation_port__: { get_param: license_activation_port }
             __f5_admin_password__: { get_param: f5_admin_password }
             __f5_root_password__: { get_param: f5_root_password }
             __f5_license_1__: { get_param: f5_license_1 }
@@ -243,6 +264,8 @@ resources:
                    "root_password": "__f5_root_password__",
                    "license": {
                        "basekey": "__f5_license_1__",
+                       "host": "__license_activation_host__",
+                       "port": "__license_activation_port__",
                        "proxyhost": "__http_proxy_host__",
                        "proxyport": "__http_proxy_port__",
                        "proxyscripturl": "__http_proxy_script_url__"
@@ -320,6 +343,7 @@ resources:
       image: { get_param: f5_ve_image }
       flavor: { get_param: f5_ve_flavor }
       key_name: { get_param: ssh_key }
+      config_drive: { get_param: config_drive }
       networks:
         - port: {get_resource: f5_fw2_mgmt_port}
         - port: {get_resource: f5_fw2_ha_port}
@@ -345,6 +369,8 @@ resources:
                    "root_password": "__f5_root_password__",
                    "license": {
                        "basekey": "__f5_license_2__",
+                       "host": "__license_activation_host__",
+                       "port": "__license_activation_port__",
                        "proxyhost": "__http_proxy_host__",
                        "proxyport": "__http_proxy_port__",
                        "proxyscripturl": "__http_proxy_script_url__"
