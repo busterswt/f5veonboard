@@ -304,7 +304,7 @@ resources:
                                "vlan_name": "vlan.HA",
                                "vlan_description": "VLAN for BIG-IP External traffic",
                                "is_failover": "true",
-                               "is_sync": "true",
+                 ROSLQ-JLJGW-OPOHP-JTBUJ-JZIBDEF              "is_sync": "true",
                                "is_mirror_primary": "true",
                                "is_mirror_secondary": "false"
                            },

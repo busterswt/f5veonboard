@@ -350,7 +350,7 @@ resources:
             echo "parameters:" > /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_ve_image: __f5_fw_os_image__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_ve_flavor: __f5_fw_os_flavor__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  config_drive: f5_fw_os_config_drive " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  config_drive: __f5_fw_os_config_drive__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  ssh_key: __f5_fw_os_ssh_key__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  mgmt_network: __f5_fw_os_mgmt_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  ha_network: __f5_fw_os_ha_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
@@ -360,8 +360,8 @@ resources:
             echo "  http_proxy_host: __http_proxy_host__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  http_proxy_port: __http_proxy_port__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  http_proxy_script_url: __http_proxy_script_url__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  license_activation_host:  __f5_fw_license_activation_host__  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  license_activation_port:  __f5_fw_license_activation_port__  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  license_activation_host: __f5_fw_license_activation_host__"  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            echo "  license_activation_port: __f5_fw_license_activation_port__"  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_admin_password: __f5_fw_admin_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_root_password: __f5_fw_root_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
             echo "  f5_license_1: __f5_fw_license_1__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
