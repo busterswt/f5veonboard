@@ -304,7 +304,7 @@ resources:
                                "vlan_name": "vlan.HA",
                                "vlan_description": "VLAN for BIG-IP External traffic",
                                "is_failover": "true",
-                 ROSLQ-JLJGW-OPOHP-JTBUJ-JZIBDEF              "is_sync": "true",
+                               "is_sync": "true",
                                "is_mirror_primary": "true",
                                "is_mirror_secondary": "false"
                            },
@@ -356,6 +356,8 @@ resources:
             __http_proxy_host__: { get_param: http_proxy_host }
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
+            __license_activation_host__: { get_param: license_activation_host }
+            __license_activation_port__: { get_param: license_activation_port }
             __f5_admin_password__: { get_param: f5_admin_password }
             __f5_root_password__: { get_param: f5_root_password }
             __f5_license_2__: { get_param: f5_license_2 }
