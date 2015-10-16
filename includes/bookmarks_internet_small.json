@@ -27,11 +27,6 @@
             "min-ram": 8192,
             "vcpus": 4,
             "flavor": "BIGIP-11.5.3.ALL.Medium",
-            "flavor-specs": [
-                {
-                    "target_vendor": "F5 Networks"
-                }
-            ],
             "volumes": [
                 {
                     "BIGIP-11.5.3.2.10.196.DATASTOR.ALL": {
