@@ -812,8 +812,10 @@ function configure_global_routes() {
   routes=$(get_user_data_network_routes)
   for route in $(echo $routes | tr "|" "\n"); do
      re=($(echo $route | tr ";" "\n"));
-     log "Adding global route destination ${re[0]} gateway ${re[1]}..."
-     tmsh create /net route ${re[0]} gw ${re[1]}
+     if [[ ! $(is_false ${re[1]}) ]]; then
+         log "Adding global route destination ${re[0]} gateway ${re[1]}..."
+         tmsh create /net route ${re[0]} gw ${re[1]}
+     fi
   done
 }
 
