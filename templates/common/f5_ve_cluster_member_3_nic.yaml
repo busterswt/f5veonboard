@@ -128,17 +128,20 @@ resources:
      type: OS::Neutron::Port
      properties:
        network: {get_param: mgmt_network}
-       security_groups: [ bigip_mgmt_security_group ]
+       security_groups:
+         - bigip_mgmt_security_group
    ha_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: ha_network}
-      security_groups: [ bigip_control_security_group ]
+      security_groups:
+        - bigip_control_security_group
    network_1_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_1 }
-      security_groups: [ bigip_control_data_group ]
+      security_groups:
+        - bigip_control_data_group
    ve_instance:
     type: OS::Nova::Server
     properties:
