@@ -93,8 +93,7 @@ parameters:
     type: string
     label: VE Network Name for the 1.2 Interface
     description: TMM 1.2 network name.
-    constraints:
-      - custom_constraint: neutron.network
+    default: None
   default_gateway:
     type: string
     label: Default Gateway IP
