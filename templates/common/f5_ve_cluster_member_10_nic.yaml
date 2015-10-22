@@ -86,49 +86,97 @@ parameters:
   network_1:
     type: string
     label: VE Network for the 1.2 Interface
-    description: 1.2 TMM Network.
+    description: 1.2 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_name:
+    type: string
+    label: VE Network Name for the 1.2 Interface
+    description: 1.2 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_2:
     type: string
     label: VE Network for the 1.3 Interface
-    description: 1.3 TMM Network.
+    description: 1.3 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_2_name:
+    type: string
+    label: VE Network Name for the 1.3 Interface
+    description: 1.3 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_3:
     type: string
     label: VE Network for the 1.4 Interface
-    description: 1.4 TMM Network.
+    description: 1.4 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_3_name:
+    type: string
+    label: VE Network Name for the 1.4 Interface
+    description: 1.4 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_4:
     type: string
     label: VE Network for the 1.5 Interface
-    description: 1.5 TMM Network.
+    description: 1.5 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_4_name:
+    type: string
+    label: VE Network Name for the 1.5 Interface
+    description: 1.5 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_5:
     type: string
     label: VE Network for the 1.6 Interface
-    description: 1.6 TMM Network.
+    description: 1.6 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_5_name:
+    type: string
+    label: VE Network Name for the 1.6 Interface
+    description: 1.6 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_6:
     type: string
     label: VE Network for the 1.7 Interface
-    description: 1.7 TMM Network.
+    description: 1.7 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_6_name:
+    type: string
+    label: VE Network Name for the 1.7 Interface
+    description: 1.7 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_7:
     type: string
     label: VE Network for the 1.8 Interface
-    description: 1.8 TMM Network.
+    description: 1.8 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_7_name:
+    type: string
+    label: VE Network Name for the 1.8 Interface
+    description: 1.8 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   network_8:
     type: string
     label: VE Network for the 1.9 Interface
-    description: 1.9 TMM Network.
+    description: 1.9 TMM network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_8_name:
+    type: string
+    label: VE Network Name for the 1.9 Interface
+    description: 1.9 TMM network name.
     constraints:
       - custom_constraint: neutron.network
   default_gateway:
@@ -157,13 +205,21 @@ parameter_groups:
   - mgmt_network
   - ha_network
   - network_1
+  - network_1_name
   - network_2
+  - network_2_name
   - network_3
+  - network_3_name
   - network_4
+  - network_4_name
   - network_5
+  - network_5_name
   - network_6
+  - network_6_name
   - network_7
+  - network_7_name
   - network_8
+  - network_8_name
   - default_gateway  
 
 resources:
@@ -216,8 +272,8 @@ resources:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_8 }
-      security_groups: [ bigip_data_security_group ]   
-  ve_instance:
+      security_groups: [ bigip_data_security_group ]
+   ve_instance:
     type: OS::Nova::Server
     properties:
       image: { get_param: ve_image }
@@ -249,13 +305,21 @@ resources:
             __license__: { get_param: license }
             __default_gateway__: { get_param: default_gateway }
             __network_1__: { get_param: network_1 }
+            __network_1_name__: { get_param: network_1_name }
             __network_2__: { get_param: network_2 }
+            __network_2_name__: { get_param: network_2_name }
             __network_3__: { get_param: network_3 }
+            __network_3_name__: { get_param: network_3_name }
             __network_4__: { get_param: network_4 }
+            __network_4_name__: { get_param: network_4_name }
             __network_5__: { get_param: network_5 }
+            __network_5_name__: { get_param: network_5_name }
             __network_6__: { get_param: network_6 }
+            __network_6_name__: { get_param: network_6_name }
             __network_7__: { get_param: network_7 }
+            __network_7_name__: { get_param: network_7_name }
             __network_8__: { get_param: network_8 }
+            __network_8_name__: { get_param: network_8_name }
           template: |
             {
                "bigip": {
@@ -301,10 +365,10 @@ resources:
                            "1.2": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_1__",
-                               "selfip_description": "Self IP address for BIG-IP __network_1__",
-                               "vlan_name": "vlan.__f5_network_1__",
-                               "vlan_description": "VLAN for BIG-IP __network_1__ traffic",
+                               "selfip_name": "selfip.__network_1_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_1_name__",
+                               "vlan_name": "__network_1_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_1_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -313,10 +377,10 @@ resources:
                            "1.3": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_2__",
-                               "selfip_description": "Self IP address for BIG-IP __network_2__",
-                               "vlan_name": "vlan.__f5_network_2__",
-                               "vlan_description": "VLAN for BIG-IP __network_2__ traffic",
+                               "selfip_name": "selfip.__network_2_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_2_name__",
+                               "vlan_name": "__network_2_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_2_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -325,10 +389,10 @@ resources:
                            "1.4": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_3__",
-                               "selfip_description": "Self IP address for BIG-IP __network_3__",
-                               "vlan_name": "vlan.__f5_network_3__",
-                               "vlan_description": "VLAN for BIG-IP __network_3__ traffic",
+                               "selfip_name": "selfip.__network_3_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_3_name__",
+                               "vlan_name": "__network_3_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_3_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -337,10 +401,10 @@ resources:
                            "1.5": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_4__",
-                               "selfip_description": "Self IP address for BIG-IP __network_4__",
-                               "vlan_name": "vlan.__f5_network_4__",
-                               "vlan_description": "VLAN for BIG-IP __network_4__ traffic",
+                               "selfip_name": "selfip.__network_4_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_4_name__",
+                               "vlan_name": "__network_4_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_4_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -349,10 +413,10 @@ resources:
                            "1.6": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_5__",
-                               "selfip_description": "Self IP address for BIG-IP __network_5__",
-                               "vlan_name": "vlan.__f5_network_5__",
-                               "vlan_description": "VLAN for BIG-IP __network_5__ traffic",
+                               "selfip_name": "selfip.__network_5_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_5_name__",
+                               "vlan_name": "__network_5_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_5_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -361,10 +425,10 @@ resources:
                            "1.7": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_6__",
-                               "selfip_description": "Self IP address for BIG-IP __network_6__",
-                               "vlan_name": "vlan.__f5_network_6__",
-                               "vlan_description": "VLAN for BIG-IP __network_6__ traffic",
+                               "selfip_name": "selfip.__network_6_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_6_name__",
+                               "vlan_name": "__network_6_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_6_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -373,10 +437,10 @@ resources:
                            "1.8": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_7__",
-                               "selfip_description": "Self IP address for BIG-IP __network_7__",
-                               "vlan_name": "vlan.__f5_network_7__",
-                               "vlan_description": "VLAN for BIG-IP __network___ traffic",
+                               "selfip_name": "selfip.__network_7_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_7_name__",
+                               "vlan_name": "__network_7_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_7_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
@@ -385,10 +449,10 @@ resources:
                            "1.9": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_8__",
-                               "selfip_description": "Self IP address for BIG-IP __network_8__",
-                               "vlan_name": "vlan.__f5_network_8__",
-                               "vlan_description": "VLAN for BIG-IP __network___ traffic",
+                               "selfip_name": "selfip.__network_8_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_8_name__",
+                               "vlan_name": "__network_8_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_8_name__ traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",

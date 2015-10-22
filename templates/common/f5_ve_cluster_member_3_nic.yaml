@@ -86,7 +86,13 @@ parameters:
   network_1:
     type: string
     label: VE Network for the 1.2 Interface
-    description: First TMM Network.
+    description: TMM 1.2 network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_name:
+    type: string
+    label: VE Network Name for the 1.2 Interface
+    description: TMM 1.2 network name.
     constraints:
       - custom_constraint: neutron.network
   default_gateway:
@@ -115,6 +121,7 @@ parameter_groups:
   - mgmt_network
   - ha_network
   - network_1
+  - network_1_name
   - default_gateway  
 
 resources:
@@ -158,6 +165,7 @@ resources:
             __license__: { get_param: license }
             __default_gateway__: { get_param: default_gateway }
             __network_1__: { get_param: network_1 }
+            __network_1_name__: { get_param: network_1_name }
           template: |
             {
                "bigip": {
@@ -203,10 +211,10 @@ resources:
                            "1.2": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.__network_1__",
-                               "selfip_description": "Self IP address for BIG-IP __network_1__",
-                               "vlan_name": "vlan.__f5_network_1__",
-                               "vlan_description": "VLAN for BIG-IP __network_1__ traffic",
+                               "selfip_name": "selfip.__network_1_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_1_name__ network",
+                               "vlan_name": "__network_1_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_1_name__ network traffic",
                                "is_failover": "false",
                                "is_sync": "false",
                                "is_mirror_primary": "false",
