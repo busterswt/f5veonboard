@@ -206,47 +206,56 @@ resources:
      type: OS::Neutron::Port
      properties:
        network: {get_param: mgmt_network}
-       security_groups: [ bigip_mgmt_security_group ]
+       security_groups:
+         - bigip_mgmt_security_group
    ha_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: ha_network}
-      security_groups: [ bigip_control_security_group ]
+      security_groups:
+        - bigip_control_security_group
    network_1_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_1 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    network_2_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_2 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    network_3_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_3 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    network_4_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_4 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    network_5_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_5 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    network_6_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_6 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    network_7_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_7 }
-      security_groups: [ bigip_data_security_group ]
+      security_groups:
+        - bigip_data_security_group
    ve_instance:
     type: OS::Nova::Server
     properties:

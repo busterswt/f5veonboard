@@ -141,7 +141,7 @@ resources:
     properties:
       network: {get_param: network_1 }
       security_groups:
-        - bigip_control_data_group
+        - bigip_data_security_group
    ve_instance:
     type: OS::Nova::Server
     properties:
