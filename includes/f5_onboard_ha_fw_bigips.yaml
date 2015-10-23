@@ -37,6 +37,10 @@ parameters:
     default: private-trusted
     constraints:
       - custom_constraint: neutron.network
+  trusted_network_name:
+    type: string
+    label: F5 VE Trusted Network Name
+    default: Trusted
   untrusted_network:
     type: string
     label: VE Untrusted Network
@@ -44,6 +48,10 @@ parameters:
     default: private-mgmt
     constraints:
       - custom_constraint: neutron.network
+  untrusted_network_name:
+    type: string
+    label: F5 VE Untrusted Network Name
+    default: Untrusted
   default_gateway:
     type: string
     label: Gateway IP
@@ -119,7 +127,9 @@ parameter_groups:
   - mgmt_network
   - ha_network
   - trusted_network
+  - trusted_network_name
   - untrusted_network
+  - untrusted_network_name
   - default_gateway
 - parameters:
   - http_proxy_host
@@ -254,6 +264,8 @@ resources:
             __f5_admin_password__: { get_param: f5_admin_password }
             __f5_root_password__: { get_param: f5_root_password }
             __f5_license_1__: { get_param: f5_license_1 }
+            __trusted_network_name__: { get_param: trusted_network_name }
+            __untrusted_network_name__: { get_param: trusted_network_name }
             __default_gateway__: { get_param: default_gateway }
           template: |
             {
@@ -311,9 +323,9 @@ resources:
                            "1.2": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.Trusted",
+                               "selfip_name": "selfip.__trusted_network_name__",
                                "selfip_description": "Self IP address for BIG-IP Trusted subnet",
-                               "vlan_name": "vlan.Trusted",
+                               "vlan_name": "__trusted_network_name__",
                                "vlan_description": "VLAN for BIG-IP Trusted traffic",
                                "is_failover": "false",
                                "is_sync": "false",
@@ -323,9 +335,9 @@ resources:
                            "1.3": {
                                "dhcp": "true",
                                "selfip_allow_service": "default",
-                               "selfip_name": "selfip.Untrusted",
+                               "selfip_name": "selfip.__untrusted_network_name__",
                                "selfip_description": "Self IP address for BIG-IP Untrusted subnet",
-                               "vlan_name": "vlan.Untrusted",
+                               "vlan_name": "__untrusted_network_name__",
                                "vlan_description": "VLAN for BIG-IP Untrusted traffic",
                                "is_failover": "false",
                                "is_sync": "false",
@@ -454,9 +466,39 @@ outputs:
   fw1_mgmt_ip:
     description: The mgmt IP address of f5 fw instance 1
     value: { get_attr: [f5_fw1_mgmt_port, fixed_ips, 0, ip_address] }
+  fw1_mgmt_mac:
+    description: The mgmt MAC address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_mgmt_port, mac_address] }
+  fw1_mgmt_port:
+    description: The mgmt port id of f5 VE instance
+    value: { get_resource: f5_fw1_mgmt_port }    
   fw1_ha_ip:
     description: The HA IP address of f5 fw instance 1
     value: { get_attr: [f5_fw1_ha_port, fixed_ips, 0, ip_address] }
+  fw1_ha_mac:
+    description: The HA MAC address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_ha_port, mac_address] }
+  fw1_ha_port:
+    description: The HA port id of f5 fw instance 1
+    value: { get_resource: f5_fw1_ha_port }
+  fw1_trusted_ip:
+    description: The Trusted IP address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_trusted_port, fixed_ips, 0, ip_address] }
+  fw1_trusted_mac:
+    description: The Trusted MAC address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_trusted_port, mac_address] }
+  fw1_trusted_port:
+    description: The Trusted port id of f5 fw instance 1
+    value: { get_resource: f5_fw1_trusted_port }
+  fw1_untrusted_ip:
+    description: The Untrusted IP address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_untrusted_port, fixed_ips, 0, ip_address] }
+  fw1_untrusted_mac:
+    description: The Untrusted MAC address of f5 fw instance 1
+    value: { get_attr: [f5_fw1_untrusted_port, mac_address] }
+  fw1_untrusted_port:
+    description: The Untrusted port id of f5 fw instance 1
+    value: { get_resource: f5_fw1_untrusted_port }
   fw2_instance_name:
     description: Name of the instance
     value: { get_attr: [f5_fw_instance_2, name] }
@@ -466,6 +508,36 @@ outputs:
   fw2_mgmt_ip:
     description: The mgmt IP address of f5 fw instance 2
     value: { get_attr: [f5_fw2_mgmt_port, fixed_ips, 0, ip_address] }
+  fw2_mgmt_mac:
+    description: The mgmt MAC address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_mgmt_port, mac_address] }
+  fw2_mgmt_port:
+    description: The mgmt port id of f5 VE instance
+    value: { get_resource: f5_fw2_mgmt_port }    
   fw2_ha_ip:
     description: The HA IP address of f5 fw instance 2
     value: { get_attr: [f5_fw2_ha_port, fixed_ips, 0, ip_address] }
+  fw2_ha_mac:
+    description: The HA MAC address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_ha_port, mac_address] }
+  fw2_ha_port:
+    description: The HA port id of f5 fw instance 2
+    value: { get_resource: f5_fw2_ha_port }    
+  fw2_trusted_ip:
+    description: The Trusted IP address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_trusted_port, fixed_ips, 0, ip_address] }
+  fw2_trusted_mac:
+    description: The Trusted MAC address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_trusted_port, mac_address] }
+  fw2_trusted_port:
+    description: The Trusted port id of f5 fw instance 2
+    value: { get_resource: f5_fw2_trusted_port }
+  fw2_untrusted_ip:
+    description: The Untrusted IP address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_untrusted_port, fixed_ips, 0, ip_address] }
+  fw2_untrusted_mac:
+    description: The Untrusted MAC address of f5 fw instance 2
+    value: { get_attr: [f5_fw2_untrusted_port, mac_address] }
+  fw2_untrusted_port:
+    description: The Untrusted port id of f5 fw instance 2
+    value: { get_resource: f5_fw2_untrusted_port }    

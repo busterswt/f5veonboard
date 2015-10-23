@@ -3,22 +3,9 @@ heat_template_version: 2013-05-23
 description: This template deploys a Linux image as a TMOS HA VE firewall onboarding server.
 
 parameters:
-  flavor:
+  orchestration_host_network:
     type: string
-    label: F5 Onboard Server Flavor
-    description: Type of instance (flavor) to be used on the orchestration instance
-    default: m1.medium
-    constraints:
-      - custom_constraint: nova.flavor 
-  image:
-    type: string
-    label: F5 Onboard Server Ubuntu Image
-    description: The image to be used on the orchestration instance
-    constraints:
-      - custom_constraint: glance.image 
-  private_network:
-    type: string
-    label: F5 Onboard Server Management Network
+    label: F5 Orchestration Instance Network
     description: Private network to attach the orchestration instance
     default: private-net
     constraints:
@@ -66,50 +53,55 @@ parameters:
     label: F5 Virtual Edition Launch HOT Template
     description: The URL for F5 Virtual Edition launch template
     default: https://raw.githubusercontent.com/f5openstackcommunity/f5veonboard/master/includes/f5_onboard_ha_fw_bigips.yaml
-  f5_fw_os_stack_postfix:
+  f5_ve_os_stack_name:
     type: string
     label: FW Cluster Name
     description: Unique Name for This Cluster
-    default: '_1_0_1'
-  f5_fw_os_auth_url:
+    default: 'f5_ve_ha_1_0_1'
+  f5_ve_os_auth_url:
     type: string
     label: FW OS Keystone Auth URL
     description: Keystone URL to perform FW service creation
     default: http://10.1.0.42:5000/v2.0
-  f5_fw_os_tenant:
+  f5_ve_os_tenant:
     type: string
     label: FW OS Create Tenant
     description: Tenant to perform FW service creation
     default: admin
-  f5_fw_os_user:
+  f5_ve_os_user:
     type: string
     label: FW OS Create User
     description: User to perform image import services
     default: admin
-  f5_fw_os_password:
+  f5_ve_os_password:
     type: string
     label: FW OS Create User Password
     description: Password used to perform image import services
     default: admin
     hidden: true
-  f5_fw_os_image:
+  f5_ve_os_image:
     type: string
     label: F5 VE Image
     description: The image to be used on the fw instance.
     constraints:
       - custom_constraint: glance.image 
-  f5_fw_os_flavor:
+  f5_ve_os_flavor:
     type: string
     label: F5 VE Flavor
     description: Type of instance (flavor) to be used for the fw instance.
     default: m1.medium
     constraints:
       - custom_constraint: nova.flavor 
-  f5_fw_os_config_drive:
+  f5_ve_os_config_drive:
     type: boolean
     label: Use Config Drive
     description: Use config drive to provider meta and user data.
-    default: false 
+    default: false
+  f5_ve_os_external_network:
+    type: string
+    label: F5 VE External Network
+    description: Neutron External Network for Floating IPs
+    default: None 
   f5_bigiq_host:
     type: string
     label: F5 BIG-IQ API Endpoint Address
@@ -125,65 +117,88 @@ parameters:
     label: F5 BIG-IQ API Password
     description: The BIG-IQ API user password
     hidden: true
-  f5_fw_os_mgmt_network:
+  f5_ve_os_mgmt_network:
     type: string
     label: F5 FW Management Network
     description: F5 FW Management Network.
     default: private-mgmt
     constraints:
       - custom_constraint: neutron.network
-  f5_fw_os_ha_network:
+  f5_ve_os_mgmt_network_floating_ip:
+    type: boolean
+    label: Create F5 VE Management Neutron Floating IP
+    description: Create F5 VE Management Neutron Floating IP
+    default: false  
+  f5_ve_os_ha_network:
     type: string
     label: F5 FW HA Network
     description: F5 FW HA Network.
     default: private-ha
     constraints:
       - custom_constraint: neutron.network
-  f5_fw_os_trusted_network:
+  f5_ve_os_trusted_network:
     type: string
     label: F5 FW Trusted Network
     description: F5 FW Trusted Network.
     default: private-trusted
     constraints:
       - custom_constraint: neutron.network
-  f5_fw_os_untrusted_network:
+  f5_ve_os_trusted_network_name:
+    type: string
+    label: F5 VE Trusted Network Name
+    default: Trusted
+  f5_ve_os_trusted_network_floating_ip:
+    type: boolean
+    label: Create F5 VE Trusted Network Floating SelfIP
+    description: Create F5 VE Trusted Network Floating SelfIP
+    default: false
+  f5_ve_os_untrusted_network:
     type: string
     label: F5 FW Untrusted Network
     description: F5 FW Untrusted Network.
     default: private-untrusted
     constraints:
       - custom_constraint: neutron.network
-  f5_fw_default_gateway:
+  f5_ve_os_untrusted_network_name:
+    type: string
+    label: F5 VE Untrusted Network Name
+    default: Untrusted
+  f5_ve_os_untrusted_network_floating_ip:
+    type: boolean
+    label: Create F5 VE Untrusted Network Floating SelfIP
+    description: Create F5 VE Untrusted Network Floating SelfIP
+    default: false
+  f5_ve_default_gateway:
     type: string
     label: Firewall Gateway IP
     default: 172.17.1.1
     description: Upstream Gateway IP Address for FW instances
-  f5_fw_os_ssh_key:
+  f5_ve_os_ssh_key:
     type: string
     label: F5 FW Root SSH Key Name
     description: Name of key-pair to be installed on the FW instances
     default: my_key
     constraints:
       - custom_constraint: nova.keypair
-  f5_fw_admin_password:
+  f5_ve_admin_password:
     type: string
     label: F5 FW Admin User Password
     description: TMOS admin password
     default: admin
     hidden: true  
-  f5_fw_root_password:
+  f5_ve_root_password:
     type: string
     label: F5 FW Root User Password
     description: TMOS root password
     default: admin
     hidden: true
-  f5_fw_license_1:
+  f5_ve_license_1:
     type: string
     label: FW License Base Key
     description: F5 TMOS License Basekey
     default: None
     hidden: true
-  f5_fw_license_2:
+  f5_ve_license_2:
     type: string
     label: FW License Base Key
     description: F5 TMOS License Basekey
@@ -192,9 +207,7 @@ parameters:
 
 parameter_groups:
 - parameters:
-  - flavor
-  - image
-  - private_network
+  - orchestration_host_network
   - package_proxy
   - http_proxy_host
   - http_proxy_port
@@ -202,43 +215,52 @@ parameter_groups:
   - license_activation_host
   - license_activation_port
 - parameters:
-  - f5_fw_os_stack_postfix
-  - f5_fw_os_auth_url
-  - f5_fw_os_tenant
-  - f5_fw_os_user
-  - f5_fw_os_password
-  - f5_fw_os_image
-  - f5_fw_os_flavor
-  - f5_fw_os_config_drive
-  - f5_fw_os_ssh_key
-  - f5_fw_os_mgmt_network
-  - f5_fw_os_ha_network
-  - f5_fw_os_trusted_network
-  - f5_fw_os_untrusted_network
-  - f5_fw_default_gateway
+  - f5_ve_os_stack_name
+  - f5_ve_os_auth_url
+  - f5_ve_os_tenant
+  - f5_ve_os_user
+  - f5_ve_os_password
+  - f5_ve_os_image
+  - f5_ve_os_flavor
+  - f5_ve_os_config_drive
+  - f5_ve_os_ssh_key
+  - f5_ve_os_external_network
+  - f5_ve_os_mgmt_network
+  - f5_ve_os_mgmt_network_floating_ip
+  - f5_ve_os_ha_network
+  - f5_ve_os_trusted_network
+  - f5_ve_os_trusted_network_name
+  - f5_ve_os_trusted_network_floating_ip
+  - f5_ve_os_untrusted_network
+  - f5_ve_os_untrusted_network_name
+  - f5_ve_os_untrusted_network_floating_ip
+  - f5_ve_default_gateway
 - parameters:
-  - f5_fw_admin_password
-  - f5_fw_root_password
+  - f5_ve_admin_password
+  - f5_ve_root_password
   - f5_bigiq_host
   - f5_bigiq_user
   - f5_bigiq_password  
-  - f5_fw_license_1
-  - f5_fw_license_2
+  - f5_ve_license_1
+  - f5_ve_license_2
 - parameters:
   - f5_odk_package_url
   - f5_onboard_package_url
   - f5_ve_launch_template
 
 resources:
-  wait_condition:
-    type: OS::Heat::WaitCondition
+    
+  onboard_image:
+    type: OS::Glance::Image
     properties:
-      handle: { get_resource: wait_handle }
-      count: 1
-      timeout: 3600
-
-  wait_handle:
-    type: OS::Heat::WaitConditionHandle
+      container_format: bare
+      disk_format: qcow2
+      is_public: False
+      location: http://10.1.0.11/ubuntu-14.04-server-cloudimg-amd64-disk1.img
+      min_disk: 40
+      min_ram: 512
+      name: F5OnboardImage
+      protected: False
     
   fw_cluster_orchestration_security_group:
     type: OS::Neutron::SecurityGroup
@@ -266,11 +288,12 @@ resources:
         - { get_resource: fw_cluster_orchestration_security_group }
       flavor: { get_param: flavor }
       networks:
-        - network: { get_param: private_network }
+        - network: { get_param: orchestration_host_network }
       user_data_format: RAW
       user_data:
         str_replace:
           params:
+            __stack_id__: { get_param: "OS::stack_id" }
             __http_proxy_host__: { get_param: http_proxy_host }
             __http_proxy_port__: { get_param: http_proxy_port }
             __http_proxy_script_url__ : { get_param: http_proxy_script_url }
@@ -278,30 +301,35 @@ resources:
             __f5_odk_package_url__: { get_param: f5_odk_package_url }
             __f5_onboard_package_url__: { get_param: f5_onboard_package_url }
             __f5_ve_launch_template__: { get_param: f5_ve_launch_template }
-            __f5_fw_os_auth_url__: { get_param: f5_fw_os_auth_url }
-            __f5_fw_os_stack_postfix__: { get_param: f5_fw_os_stack_postfix }
-            __f5_fw_os_tenant__: { get_param: f5_fw_os_tenant }
-            __f5_fw_os_user__: { get_param: f5_fw_os_user }
-            __f5_fw_os_password__: { get_param: f5_fw_os_password }
-            __f5_fw_os_image__: { get_param: f5_fw_os_image }
-            __f5_fw_os_flavor__: { get_param: f5_fw_os_flavor }
-            __f5_fw_os_config_drive__: { get_param: f5_fw_os_config_drive }
-            __f5_fw_os_ssh_key__: { get_param: f5_fw_os_ssh_key }
-            __f5_fw_os_mgmt_network__: { get_param: f5_fw_os_mgmt_network }
-            __f5_fw_os_ha_network__: { get_param: f5_fw_os_ha_network }
-            __f5_fw_os_trusted_network__: { get_param: f5_fw_os_trusted_network }
-            __f5_fw_os_untrusted_network__: { get_param: f5_fw_os_untrusted_network }
-            __f5_fw_default_gateway__: { get_param: f5_fw_default_gateway }
-            __f5_fw_admin_password__: { get_param: f5_fw_admin_password }
-            __f5_fw_root_password__: { get_param: f5_fw_root_password }
+            __f5_ve_os_auth_url__: { get_param: f5_ve_os_auth_url }
+            __f5_ve_os_stack_name__: { get_param: f5_ve_os_stack_name }
+            __f5_ve_os_tenant__: { get_param: f5_ve_os_tenant }
+            __f5_ve_os_user__: { get_param: f5_ve_os_user }
+            __f5_ve_os_password__: { get_param: f5_ve_os_password }
+            __f5_ve_os_image__: { get_param: f5_ve_os_image }
+            __f5_ve_os_flavor__: { get_param: f5_ve_os_flavor }
+            __f5_ve_os_config_drive__: { get_param: f5_ve_os_config_drive }
+            __f5_ve_os_ssh_key__: { get_param: f5_ve_os_ssh_key }
+            __f5_ve_os_external_network__: { get_param: f5_ve_os_external_network }
+            __f5_ve_os_mgmt_network__: { get_param: f5_ve_os_mgmt_network }
+            __f5_ve_os_mgmt_network_floating_ip__: { get_param: f5_ve_os_mgmt_network_floating_ip }
+            __f5_ve_os_ha_network__: { get_param: f5_ve_os_ha_network }
+            __f5_ve_os_trusted_network__: { get_param: f5_ve_os_trusted_network }
+            __f5_ve_os_trusted_network_name__: { get_param: f5_ve_os_trusted_network_name }
+            __f5_ve_os_trusted_network_floating_ip__: { get_param: f5_ve_os_trusted_network_floating_ip }
+            __f5_ve_os_untrusted_network__: { get_param: f5_ve_os_untrusted_network }
+            __f5_ve_os_untrusted_network_name__: { get_param: f5_ve_os_untrusted_network_name }
+            __f5_ve_os_untrusted_network_floating_ip__: { get_param: f5_ve_os_untrusted_network_floating_ip }
+            __f5_ve_default_gateway__: { get_param: f5_ve_default_gateway }
+            __f5_ve_admin_password__: { get_param: f5_ve_admin_password }
+            __f5_ve_root_password__: { get_param: f5_ve_root_password }
             __f5_bigiq_host__: { get_param: f5_bigiq_host }
             __f5_bigiq_user__: { get_param: f5_bigiq_user }
             __f5_bigiq_password__: { get_param: f5_bigiq_password }
-            __f5_fw_license_activation_host__ : { get_param: license_activation_host }
-            __f5_fw_license_activation_port__ : { get_param: license_activation_port }
-            __f5_fw_license_1__: { get_param: f5_fw_license_1 }
-            __f5_fw_license_2__: { get_param: f5_fw_license_2 }
-            wc_notify: { get_attr: ['wait_handle', 'curl_cli'] }
+            __f5_ve_license_activation_host__ : { get_param: license_activation_host }
+            __f5_ve_license_activation_port__ : { get_param: license_activation_port }
+            __f5_ve_license_1__: { get_param: f5_ve_license_1 }
+            __f5_ve_license_2__: { get_param: f5_ve_license_2 }
           template: |
             #!/bin/bash -ex
 
@@ -342,64 +370,102 @@ resources:
             
             # setup environment
             export HOME=/home/onboard
-            export OS_AUTH_URL=__f5_fw_os_auth_url__
-            export OS_USERNAME=__f5_fw_os_user__
-            export OS_PASSWORD=__f5_fw_os_password__
-            export OS_TENANT_NAME=__f5_fw_os_tenant__
+            export OS_AUTH_URL=__f5_ve_os_auth_url__
+            export OS_USERNAME=__f5_ve_os_user__
+            export OS_PASSWORD=__f5_ve_os_password__
+            export OS_TENANT_NAME=__f5_ve_os_tenant__
             
-            echo "parameters:" > /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_ve_image: __f5_fw_os_image__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_ve_flavor: __f5_fw_os_flavor__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  config_drive: __f5_fw_os_config_drive__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  ssh_key: __f5_fw_os_ssh_key__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  mgmt_network: __f5_fw_os_mgmt_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  ha_network: __f5_fw_os_ha_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  trusted_network: __f5_fw_os_trusted_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  untrusted_network: __f5_fw_os_untrusted_network__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  default_gateway: __f5_fw_default_gateway__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  http_proxy_host: __http_proxy_host__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  http_proxy_port: __http_proxy_port__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  http_proxy_script_url: __http_proxy_script_url__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  license_activation_host: __f5_fw_license_activation_host__"  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  license_activation_port: __f5_fw_license_activation_port__"  >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_admin_password: __f5_fw_admin_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_root_password: __f5_fw_root_password__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_license_1: __f5_fw_license_1__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
-            echo "  f5_license_2: __f5_fw_license_2__ " >> /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env
+            env_file_name=/home/onboard/__f5_ve_os_stack_name__.env
+            
+            echo "parameters:" > $env_file_name
+            echo "  f5_ve_image: __f5_ve_os_image__ " >> $env_file_name
+            echo "  f5_ve_flavor: __f5_ve_os_flavor__ " >> $env_file_name
+            echo "  config_drive: __f5_ve_os_config_drive__ " >> $env_file_name
+            echo "  ssh_key: __f5_ve_os_ssh_key__ " >> $env_file_name
+            echo "  mgmt_network: __f5_ve_os_mgmt_network__ " $env_file_name
+            echo "  ha_network: __f5_ve_os_ha_network__ " $env_file_name
+            echo "  trusted_network: __f5_ve_os_trusted_network__ " $env_file_name
+            echo "  trusted_network_name: __f5_ve_os_trusted_network_name__ " $env_file_name
+            echo "  untrusted_network: __f5_ve_os_untrusted_network__ " $env_file_name
+            echo "  untrusted_network_name: __f5_ve_os_untrusted_network_name__ " $env_file_name
+            echo "  default_gateway: __f5_ve_default_gateway__ " >> $env_file_name
+            echo "  http_proxy_host: __http_proxy_host__ " >> $env_file_name
+            echo "  http_proxy_port: __http_proxy_port__ " >> $env_file_name
+            echo "  http_proxy_script_url: __http_proxy_script_url__ " >> $env_file_name
+            echo "  license_activation_host: __f5_ve_license_activation_host__"  >> $env_file_name
+            echo "  license_activation_port: __f5_ve_license_activation_port__"  >> $env_file_name
+            echo "  f5_admin_password: __f5_ve_admin_password__ " >> $env_file_name
+            echo "  f5_root_password: __f5_ve_root_password__ " >> $env_file_name
+            echo "  f5_license_1: __f5_ve_license_1__ " >> $env_file_name
+            echo "  f5_license_2: __f5_ve_license_2__ " >> $env_file_name
             
             # unset proxy if defined for local communications
             unset http_proxy
             unset https_proxy
             
             # build tenant stack
-            heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e /home/onboard/f5-ha-fw__f5_fw_os_stack_postfix__.env -c 15 f5-ha-fw__f5_fw_os_stack_postfix__
+            heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e $env_file_name -c 30 __f5_ve_os_stack_name__
             
             MAX_ATTEMPTS=50
             NOT_COMPLETE=0
             SLEEP_INTERVAL=5
             while true; do
-                STACK_COMPLETE=`heat stack-show f5-ha-fw__f5_fw_os_stack_postfix__|grep stack_status|grep COMPLETE|wc -l`
-                if [[ $STACK_COMPLETE == 1 ]]; then
+                # screen scrape the status of our stack
+                STACK_STATUS_LINES=`heat stack-show __f5_ve_os_stack_name__|grep stack_status`
+                OIFS="$IFS"
+                IFS="|"
+                fields=($STACK_STATUS_LINES)
+                IFS="$OIFS"
+                STACK_STATUS=`echo ${fields[2]}| tr -d '[[:space:]]'`
+                STACK_STATUS_REASON=`echo ${fields[5]}| tr -d '[[:space:]]'`
+                
+                echo "Stack status is $STACK_STATUS"
+                
+                if [[ $STACK_STATUS == 'CREATE_COMPLETE' ]]; then
                     echo 'FW HA instances are complete. Clustering instances..'
                     break
+                fi
+                if [[ $STACK_STATUS == 'CREATE_FAILED' ]]; then
+                    echo 'FW HA instances failed.'
+                    exit
                 fi
                 sleep $SLEEP_INTERVAL
                 NOT_COMPLETE=$(($NOT_COMPLETE + 1))
                 if [[ $NOT_COMPLETE -ge $MAX_ATTEMPTS ]]; then
                     echo 'FW HA stack failed to reach COMPLETE before timing out'
-                    wc_notify --data-binary '{"status": "FAILURE"}'
                     exit             
                 fi
             done
 
-            FW1_MGMT_IP=`heat output-show f5-ha-fw__f5_fw_os_stack_postfix__ fw1_mgmt_ip`
+            FW1_MGMT_IP=`heat output-show __f5_ve_os_stack_name__ fw1_mgmt_ip`
             FW1_MGMT_IP=`echo $FW1_MGMT_IP | tr -d '"'`
-            FW1_HA_IP=`heat output-show f5-ha-fw__f5_fw_os_stack_postfix__ fw1_ha_ip`
-            FW1_HA_IP=`echo $FW1_HA_IP | tr -d '"'`
-            FW2_MGMT_IP=`heat output-show f5-ha-fw__f5_fw_os_stack_postfix__ fw2_mgmt_ip`
+            FW1_MGMT_PORT=`heat output-show __f5_ve_os_stack_name__ fw1_mgmt_port`
+            FW1_MGMT_PORT=`echo $FW1_MGMT_PORT | tr -d '"'`
+            FW1_MGMT_FLOAT_IP=$FW1_MGMT_IP
+            FW2_MGMT_IP=`heat output-show __f5_ve_os_stack_name__ fw2_mgmt_ip`
             FW2_MGMT_IP=`echo $FW2_MGMT_IP | tr -d '"'`
-            FW2_HA_IP=`heat output-show f5-ha-fw__f5_fw_os_stack_postfix__ fw2_ha_ip`
+            FW1_MGMT_FLOAT_IP=$FW1_MGMT_IP
+            FW2_MGMT_PORT=`heat output-show __f5_ve_os_stack_name__ fw2_mgmt_port`
+            FW2_MGMT_PORT=`echo $FW2_MGMT_PORT | tr -d '"'`
+            
+            FW1_HA_IP=`heat output-show __f5_ve_os_stack_name__ fw1_ha_ip`
+            FW1_HA_IP=`echo $FW1_HA_IP | tr -d '"'`
+            FW2_HA_IP=`heat output-show __f5_ve_os_stack_name__ fw2_ha_ip`
             FW2_HA_IP=`echo $FW2_HA_IP | tr -d '"'`
+            
+            
+            if [[ __f5_ve_os_mgmt_network_floating_ip__ == 'true' ]]; then
+                external_network=__f5_ve_os_external_network__
+                if [[ __f5_ve_os_external_network__ == 'None' ]]; then
+                    nets=($(neutron net-external-list --field id |grep -v -e ^+ -e '^|[[:space:]]id'| tr -d '|'))
+                    external_network=${nets[0]}
+                fi
+                neutron floatingip-create --port-id $FW1_MGMT_PORT $external_network
+                FW1_MGMT_FLOAT_IP=`neutron floatingip-list --field port_id --field floating_ip_address|grep $FW1_MGMT_PORT|awk -F '|' '{print $2}'|tr -d '[[:space:]]'`
+                neutron floatingip-create --port-id $FW2_MGMT_PORT $external_network
+                FW2_MGMT_FLOAT_IP=`neutron floatingip-list --field port_id --field floating_ip_address|grep $FW2_MGMT_PORT|awk -F '|' '{print $2}'|tr -d '[[:space:]]'`
+            fi
+            
             
             sleep 120
             
@@ -407,25 +473,24 @@ resources:
             source f5-onboard-utils
             python $F5_ONBOARD_BIGIP_PY_DIR/cluster_generic.py \
             --ha-type pair --num-bigips 2 \
-            --bigip-floating-ip-addr-list $FW1_MGMT_IP $FW2_MGMT_IP \
+            --bigip-floating-ip-addr-list $FW1_MGMT_FLOAT_IP $FW2_MGMT_FLOAT_IP \
             --bigip-mgmt-addr-list $FW1_MGMT_IP $FW2_MGMT_IP \
             --bigip-ha-addr-list $FW1_HA_IP $FW2_HA_IP \
             --bigip-mirror-addr-list $FW1_HA_IP $FW2_HA_IP \
-            --bigip-cluster-name f5-ha-fw__f5_fw_os_stack_postfix__ \
+            --bigip-cluster-name f5-ha-fw__f5_ve_os_stack_postfix__ \
             --bigip-icontrol-username admin \
-            --bigip-icontrol-password __f5_fw_admin_password__
+            --bigip-icontrol-password __f5_ve_admin_password__
 
             # register each unit with BIG-IQ security if defined
             if [[ "__f5_bigiq_host__" != "None" ]]
             then
                  # register first firewall
-                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_fw_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_fw_admin_password__\", \"deviceIp\":\"$FW1_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
+                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_ve_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_ve_admin_password__\", \"deviceIp\":\"$FW1_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
                  # wait for completion of import task
                  sleep 180
                  # register second firewall
-                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_fw_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_fw_admin_password__\", \"deviceIp\":\"$FW2_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
+                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_ve_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_ve_admin_password__\", \"deviceIp\":\"$FW2_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
             fi
 
-            # notify clustering is complete            
-            wc_notify --data-binary '{"status": "SUCCESS"}'    
+            heat stack-delete __stack_id__   
     
