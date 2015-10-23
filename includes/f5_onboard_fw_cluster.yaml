@@ -448,6 +448,7 @@ resources:
             done
             
             FW1_DEVICE_ID=`heat output-show __f5_ve_os_stack_name__ fw1_instance_id`
+            FW1_DEVICE_ID=`echo $FW1_DEVICE_ID | tr -d '"' | tr -d "'"`
             FW1_MGMT_IP=`heat output-show __f5_ve_os_stack_name__ fw1_mgmt_ip`
             FW1_MGMT_IP=`echo $FW1_MGMT_IP | tr -d '"'`
             FW1_MGMT_PORT=`heat output-show __f5_ve_os_stack_name__ fw1_mgmt_port`
