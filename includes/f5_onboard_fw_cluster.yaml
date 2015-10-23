@@ -497,12 +497,12 @@ resources:
             --bigip-icontrol-username admin \
             --bigip-icontrol-password __f5_ve_admin_password__
 
-            data -u
+            date -u
             # add floating selfips
             if [[ __f5_ve_os_trusted_network_floating_ip__ == 'True' ]]; then
                 echo "creating floating selfip for the trusted network"
                 # create a port and get its fixed ip (assumes on subnet per network)
-                FLOATING_FIXED_IP=`neutron port-create --device-id $FW1_DEVICE_ID --device-owner F5_FLOATING_SELFIP __f5_ve_os_trusted_network__ | grep fixed_ips`
+                FLOATING_FIXED_IP=`neutron port-create --device-id $FW1_DEVICE_ID --device-owner __f5_ve_os_stack_name__ __f5_ve_os_trusted_network__ | grep fixed_ips`
                 FLOATING_SUBNET_ID=`echo $floating_ip|awk -F '"' '{print $4}'`
                 FLOATING_IP=`echo $floating_ip|awk -F '"' '{print $4}'`
                 # get ports for all VEs on this network
@@ -515,13 +515,19 @@ resources:
                 neutron port-update $FW2_TRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
                 python $F5_ONBOARD_BIGIP_PY_DIR/cluster_generic.py
                 # create VE floating SelfIP
-                
+                python $F5_ONBOARD_BIGIP_PY_DIR/add_floating_self_ips.py \
+                --network-list __f5_ve_os_trusted_network_name__ \
+                --selfip-list $FLOATING_IP \
+                --access-list all \
+                --bigip-icontrol-host $FW1_MGMT_FLOAT_IP \
+                --bigip-icontrol-username admin \
+                --bigip-icontrol-password __f5_ve_admin_password__
             fi
 
             if [[ __f5_ve_os_untrusted_network_floating_ip__ == 'True' ]]; then
                 echo "creating floating selfip for the untrusted network"
                 # create a port and get its fixed ip (assumes on subnet per network)
-                FLOATING_FIXED_IP=`neutron port-create --device-id $FW1_DEVICE_ID --device-owner F5_FLOATING_SELFIP __f5_ve_os_untrusted_network__ | grep fixed_ips`
+                FLOATING_FIXED_IP=`neutron port-create --device-id $FW1_DEVICE_ID --device-owner __f5_ve_os_stack_name__ __f5_ve_os_untrusted_network__ | grep fixed_ips`
                 FLOATING_SUBNET_ID=`echo $floating_ip|awk -F '"' '{print $4}'`
                 FLOATING_IP=`echo $floating_ip|awk -F '"' '{print $4}'`                
                 # get ports for all VEs on this network
@@ -533,6 +539,13 @@ resources:
                 neutron port-update $FW1_UNTRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
                 neutron port-update $FW2_UNTRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
                 # create VE floating SelfIP
+                python $F5_ONBOARD_BIGIP_PY_DIR/add_floating_self_ips.py \
+                --network-list __f5_ve_os_untrusted_network_name__ \
+                --selfip-list $FLOATING_IP \
+                --access-list all \
+                --bigip-icontrol-host $FW1_MGMT_FLOAT_IP \
+                --bigip-icontrol-username admin \
+                --bigip-icontrol-password __f5_ve_admin_password__
             fi
 
 
