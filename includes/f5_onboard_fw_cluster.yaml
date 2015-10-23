@@ -249,8 +249,18 @@ parameter_groups:
   - f5_ve_launch_template
 
 resources:
+
+  wait_condition:
+    type: OS::Heat::WaitCondition
+    properties:
+      handle: { get_resource: wait_handle }
+      count: 1
+      timeout: 3600
+
+  wait_handle:
+    type: OS::Heat::WaitConditionHandle
     
-  onboard_image:
+  f5_orchestration_image:
     type: OS::Glance::Image
     properties:
       container_format: bare
@@ -259,7 +269,7 @@ resources:
       location: http://10.1.0.11/ubuntu-14.04-server-cloudimg-amd64-disk1.img
       min_disk: 40
       min_ram: 512
-      name: F5OnboardImage
+      name: F5OrchestrationImage
       protected: False
     
   fw_cluster_orchestration_security_group:
@@ -283,10 +293,10 @@ resources:
   fw_cluster_orchestration_instance:
     type: OS::Nova::Server
     properties:
-      image: { get_param: image }
+      image: { get_resource: f5_orchestration_image }
       security_groups:
         - { get_resource: fw_cluster_orchestration_security_group }
-      flavor: { get_param: flavor }
+      flavor: m1.medium
       networks:
         - network: { get_param: orchestration_host_network }
       user_data_format: RAW
@@ -382,12 +392,12 @@ resources:
             echo "  f5_ve_flavor: __f5_ve_os_flavor__ " >> $env_file_name
             echo "  config_drive: __f5_ve_os_config_drive__ " >> $env_file_name
             echo "  ssh_key: __f5_ve_os_ssh_key__ " >> $env_file_name
-            echo "  mgmt_network: __f5_ve_os_mgmt_network__ " $env_file_name
-            echo "  ha_network: __f5_ve_os_ha_network__ " $env_file_name
-            echo "  trusted_network: __f5_ve_os_trusted_network__ " $env_file_name
-            echo "  trusted_network_name: __f5_ve_os_trusted_network_name__ " $env_file_name
-            echo "  untrusted_network: __f5_ve_os_untrusted_network__ " $env_file_name
-            echo "  untrusted_network_name: __f5_ve_os_untrusted_network_name__ " $env_file_name
+            echo "  mgmt_network: __f5_ve_os_mgmt_network__ " >> $env_file_name
+            echo "  ha_network: __f5_ve_os_ha_network__ " >> $env_file_name
+            echo "  trusted_network: __f5_ve_os_trusted_network__ " >> $env_file_name
+            echo "  trusted_network_name: __f5_ve_os_trusted_network_name__ " >> $env_file_name
+            echo "  untrusted_network: __f5_ve_os_untrusted_network__ " >> $env_file_name
+            echo "  untrusted_network_name: __f5_ve_os_untrusted_network_name__ " >> $env_file_name
             echo "  default_gateway: __f5_ve_default_gateway__ " >> $env_file_name
             echo "  http_proxy_host: __http_proxy_host__ " >> $env_file_name
             echo "  http_proxy_port: __http_proxy_port__ " >> $env_file_name
@@ -404,7 +414,7 @@ resources:
             unset https_proxy
             
             # build tenant stack
-            heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e $env_file_name -c 30 __f5_ve_os_stack_name__
+            heat stack-create -f /home/onboard/f5_onboard_ha_fw_bigips.yaml -e $env_file_name -c 60 __f5_ve_os_stack_name__
             
             MAX_ATTEMPTS=50
             NOT_COMPLETE=0
@@ -436,15 +446,18 @@ resources:
                     exit             
                 fi
             done
-
+            
+            FW1_DEVICE_ID=`heat output-show __f5_ve_os_stack_name__ fw1_instance_id`
             FW1_MGMT_IP=`heat output-show __f5_ve_os_stack_name__ fw1_mgmt_ip`
             FW1_MGMT_IP=`echo $FW1_MGMT_IP | tr -d '"'`
             FW1_MGMT_PORT=`heat output-show __f5_ve_os_stack_name__ fw1_mgmt_port`
             FW1_MGMT_PORT=`echo $FW1_MGMT_PORT | tr -d '"'`
             FW1_MGMT_FLOAT_IP=$FW1_MGMT_IP
+            FW1_MGMT_BIGIQ_IP=$FW1_MGMT_IP
             FW2_MGMT_IP=`heat output-show __f5_ve_os_stack_name__ fw2_mgmt_ip`
             FW2_MGMT_IP=`echo $FW2_MGMT_IP | tr -d '"'`
-            FW1_MGMT_FLOAT_IP=$FW1_MGMT_IP
+            FW2_MGMT_FLOAT_IP=$FW2_MGMT_IP
+            FW2_MGMT_BIGIQ_IP=$FW2_MGMT_IP
             FW2_MGMT_PORT=`heat output-show __f5_ve_os_stack_name__ fw2_mgmt_port`
             FW2_MGMT_PORT=`echo $FW2_MGMT_PORT | tr -d '"'`
             
@@ -454,7 +467,7 @@ resources:
             FW2_HA_IP=`echo $FW2_HA_IP | tr -d '"'`
             
             
-            if [[ __f5_ve_os_mgmt_network_floating_ip__ == 'true' ]]; then
+            if [[ __f5_ve_os_mgmt_network_floating_ip__ == 'True' ]]; then
                 external_network=__f5_ve_os_external_network__
                 if [[ __f5_ve_os_external_network__ == 'None' ]]; then
                     nets=($(neutron net-external-list --field id |grep -v -e ^+ -e '^|[[:space:]]id'| tr -d '|'))
@@ -462,13 +475,16 @@ resources:
                 fi
                 neutron floatingip-create --port-id $FW1_MGMT_PORT $external_network
                 FW1_MGMT_FLOAT_IP=`neutron floatingip-list --field port_id --field floating_ip_address|grep $FW1_MGMT_PORT|awk -F '|' '{print $2}'|tr -d '[[:space:]]'`
+                FW1_MGMT_BIGIQ_IP=$FW1_MGMT_FLOAT_IP
                 neutron floatingip-create --port-id $FW2_MGMT_PORT $external_network
                 FW2_MGMT_FLOAT_IP=`neutron floatingip-list --field port_id --field floating_ip_address|grep $FW2_MGMT_PORT|awk -F '|' '{print $2}'|tr -d '[[:space:]]'`
+                FW2_MGMT_BIGIQ_IP=$FW2_MGMT_FLOAT_IP
             fi
             
-            
+            echo "Letting BIG-IP VE boot for 2 minutes"
             sleep 120
             
+            date -u
             # cluster tenant stacked BIG-IPS
             source f5-onboard-utils
             python $F5_ONBOARD_BIGIP_PY_DIR/cluster_generic.py \
@@ -477,19 +493,63 @@ resources:
             --bigip-mgmt-addr-list $FW1_MGMT_IP $FW2_MGMT_IP \
             --bigip-ha-addr-list $FW1_HA_IP $FW2_HA_IP \
             --bigip-mirror-addr-list $FW1_HA_IP $FW2_HA_IP \
-            --bigip-cluster-name f5-ha-fw__f5_ve_os_stack_postfix__ \
+            --bigip-cluster-name __f5_ve_os_stack_name__ \
             --bigip-icontrol-username admin \
             --bigip-icontrol-password __f5_ve_admin_password__
 
+            data -u
+            # add floating selfips
+            if [[ __f5_ve_os_trusted_network_floating_ip__ == 'True' ]]; then
+                echo "creating floating selfip for the trusted network"
+                # create a port and get its fixed ip (assumes on subnet per network)
+                FLOATING_FIXED_IP=`neutron port-create --device-id $FW1_DEVICE_ID --device-owner F5_FLOATING_SELFIP __f5_ve_os_trusted_network__ | grep fixed_ips`
+                FLOATING_SUBNET_ID=`echo $floating_ip|awk -F '"' '{print $4}'`
+                FLOATING_IP=`echo $floating_ip|awk -F '"' '{print $4}'`
+                # get ports for all VEs on this network
+                FW1_TRUSTED_PORT=`heat output-show __f5_ve_os_stack_name__ fw1_trusted_port`
+                FW1_TRUSTED_PORT=`echo $FW1_TRUSTED_PORT | tr -d '"'`
+                FW2_TRUSTED_PORT=`heat output-show __f5_ve_os_stack_name__ fw2_trusted_port`
+                FW2_TRUSTED_PORT=`echo $FW2_TRUSTED_PORT | tr -d '"'`
+                # add allowed-address-pairs for the floating IP on the ports
+                neutron port-update $FW1_TRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
+                neutron port-update $FW2_TRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
+                python $F5_ONBOARD_BIGIP_PY_DIR/cluster_generic.py
+                # create VE floating SelfIP
+                
+            fi
+
+            if [[ __f5_ve_os_untrusted_network_floating_ip__ == 'True' ]]; then
+                echo "creating floating selfip for the untrusted network"
+                # create a port and get its fixed ip (assumes on subnet per network)
+                FLOATING_FIXED_IP=`neutron port-create --device-id $FW1_DEVICE_ID --device-owner F5_FLOATING_SELFIP __f5_ve_os_untrusted_network__ | grep fixed_ips`
+                FLOATING_SUBNET_ID=`echo $floating_ip|awk -F '"' '{print $4}'`
+                FLOATING_IP=`echo $floating_ip|awk -F '"' '{print $4}'`                
+                # get ports for all VEs on this network
+                FW1_UNTRUSTED_PORT=`heat output-show __f5_ve_os_stack_name__ fw1_untrusted_port`
+                FW1_UNTRUSTED_PORT=`echo $FW1_UNTRUSTED_PORT | tr -d '"'`
+                FW2_UNTRUSTED_PORT=`heat output-show __f5_ve_os_stack_name__ fw2_untrusted_port`
+                FW2_UNTRUSTED_PORT=`echo $FW2_UNTRUSTED_PORT | tr -d '"'`
+                # add allowed-address-pairs for the floating IP on the ports
+                neutron port-update $FW1_UNTRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
+                neutron port-update $FW2_UNTRUSTED_PORT --allowed_address_pairs list=true type=dict ip_address=$FLOATING_IP
+                # create VE floating SelfIP
+            fi
+
+
+            date -u
             # register each unit with BIG-IQ security if defined
             if [[ "__f5_bigiq_host__" != "None" ]]
             then
                  # register first firewall
-                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_ve_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_ve_admin_password__\", \"deviceIp\":\"$FW1_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
+                 date -u
+                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_ve_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_ve_admin_password__\", \"deviceIp\":\"$FW1_MGMT_BIGIQ_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
                  # wait for completion of import task
+                 date -u
+                 echo "Waiting 3 minutes for BIG-IQ Security Discovery and Configuration Import"
                  sleep 180
                  # register second firewall
-                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_ve_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_ve_admin_password__\", \"deviceIp\":\"$FW2_MGMT_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
+                 curl -sk -u __f5_bigiq_user__:__f5_bigiq_password__ https://__f5_bigiq_host__/mgmt/cm/firewall/tasks/declare-mgmt-authority -H 'Content-Type: application/json' -X POST -d "{\"rootUser\":\"root\",\"rootPassword\":\"__f5_ve_root_password__\", \"deviceUsername\":\"admin\", \"devicePassword\":\"__f5_ve_admin_password__\", \"deviceIp\":\"$FW2_MGMT_BIGIQ_IP\", \"snapshotWorkingConfig\":\"true\", \"automaticallyUpdateFramework\":\"true\", \"createChildTasks\":\"true\"}"
+                 date -u
             fi
 
             heat stack-delete __stack_id__   

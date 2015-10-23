@@ -20,21 +20,18 @@ parameters:
     type: string
     label: VE Management Network
     description: Management Interface Network.
-    default: private-mgmt
     constraints:
       - custom_constraint: neutron.network
   ha_network:
     type: string
     label: VE HA Network
     description: HA Interface Network.
-    default: private-ha
     constraints:
       - custom_constraint: neutron.network
   trusted_network:
     type: string
     label: VE Trusted Network
     description: Trusted Interface Network.
-    default: private-trusted
     constraints:
       - custom_constraint: neutron.network
   trusted_network_name:
@@ -45,7 +42,6 @@ parameters:
     type: string
     label: VE Untrusted Network
     description: Untrusted Interface Network.
-    default: private-mgmt
     constraints:
       - custom_constraint: neutron.network
   untrusted_network_name:
